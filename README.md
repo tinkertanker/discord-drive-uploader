@@ -17,6 +17,19 @@ A Discord bot that automatically uploads photos and videos from Discord channels
 
 ## Setup Instructions
 
+### Option A: Quick Deploy (Recommended)
+
+Use this if you want to deploy quickly and update the Google redirect URI afterward.
+
+### Option B: Pre-configured Deploy
+
+If you want to set up the correct redirect URI from the start:
+1. Fork this repository first
+2. Deploy from your fork to Netlify (without clicking the deploy button)
+3. Note your Netlify URL
+4. Set up Google OAuth with the correct redirect URI
+5. Then configure environment variables in Netlify
+
 ### Prerequisites
 
 #### 1. Google Cloud Project Setup
@@ -31,7 +44,8 @@ A Discord bot that automatically uploads photos and videos from Discord channels
    - Go to "APIs & Services" → "Credentials"
    - Click "Create Credentials" → "OAuth client ID"
    - Choose "Web application"
-   - Add authorized redirect URI: `https://your-site.netlify.app/auth/google/callback`
+   - For now, add a temporary redirect URI: `https://localhost:8888/auth/google/callback`
+   - You'll update this after deployment
    - Save the credentials
 5. **Copy these values:**
    - `GOOGLE_CLIENT_ID`: The Client ID from your OAuth2 credentials
@@ -67,15 +81,19 @@ A Discord bot that automatically uploads photos and videos from Discord channels
 1. Click "Deploy to Netlify" button above
 2. Fill in all the environment variables from the table above
 3. Complete the deployment
-4. Update Google OAuth redirect URI:
-   - Get your Netlify site URL (e.g., `https://amazing-site-123.netlify.app`)
-   - Go back to Google Cloud Console → Credentials
-   - Edit your OAuth 2.0 Client ID
-   - Update the redirect URI to: `https://your-actual-site.netlify.app/auth/google/callback`
+4. **Important: Update Google OAuth redirect URI**:
+   - After deployment, Netlify will show your site URL (e.g., `https://amazing-site-123.netlify.app`)
+   - Go back to [Google Cloud Console](https://console.cloud.google.com/) → APIs & Services → Credentials
+   - Click on your OAuth 2.0 Client ID to edit it
+   - Remove the temporary `localhost:8888` redirect URI
+   - Add your actual Netlify URL: `https://your-actual-site.netlify.app/auth/google/callback`
+   - Save the changes
 5. Visit your deployed site and follow the setup wizard
 6. Authorize Google Drive access
 7. Select default upload folder
 8. Add bot to your Discord server using the generated invite link
+
+> **Note**: The Google OAuth flow won't work until you update the redirect URI with your actual Netlify URL!
 
 ## Bot Commands
 
@@ -142,6 +160,8 @@ MIT License - see LICENSE file for details
 1. **"Invalid redirect URI" error during Google OAuth**
    - Make sure your redirect URI in Google Cloud Console exactly matches your Netlify URL
    - Format should be: `https://your-site-name.netlify.app/auth/google/callback`
+   - Common mistake: Using the temporary localhost URL instead of your actual Netlify URL
+   - The redirect URI must be updated after deployment!
 
 2. **Bot doesn't respond to commands**
    - Ensure the bot has proper permissions in your Discord server
