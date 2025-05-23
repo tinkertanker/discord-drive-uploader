@@ -19,31 +19,63 @@ A Discord bot that automatically uploads photos and videos from Discord channels
 
 ### Prerequisites
 
-1. **Google Cloud Project**
-   - Enable Google Drive API
-   - Create OAuth2 credentials
-   - Add redirect URI: `https://your-site.netlify.app/auth/google/callback`
+#### 1. Google Cloud Project Setup
 
-2. **Discord Application**
-   - Create a new application at [Discord Developer Portal](https://discord.com/developers/applications)
-   - Create a bot and save the token
-   - Note the Application ID and Public Key
+1. Go to [Google Cloud Console](https://console.cloud.google.com/)
+2. Create a new project or select an existing one
+3. Enable the Google Drive API:
+   - Go to "APIs & Services" → "Library"
+   - Search for "Google Drive API"
+   - Click on it and press "Enable"
+4. Create OAuth2 credentials:
+   - Go to "APIs & Services" → "Credentials"
+   - Click "Create Credentials" → "OAuth client ID"
+   - Choose "Web application"
+   - Add authorized redirect URI: `https://your-site.netlify.app/auth/google/callback`
+   - Save the credentials
+5. **Copy these values:**
+   - `GOOGLE_CLIENT_ID`: The Client ID from your OAuth2 credentials
+   - `GOOGLE_CLIENT_SECRET`: The Client Secret from your OAuth2 credentials
+
+#### 2. Discord Application Setup
+
+1. Go to [Discord Developer Portal](https://discord.com/developers/applications)
+2. Click "New Application" and give it a name
+3. Go to the "General Information" tab
+4. **Copy these values:**
+   - `DISCORD_APPLICATION_ID`: The Application ID
+   - `DISCORD_PUBLIC_KEY`: The Public Key
+5. Go to the "Bot" section in the left sidebar
+6. Click "Reset Token" (or "View Token" if available)
+7. **Copy this value:**
+   - `DISCORD_BOT_TOKEN`: The bot token (keep this secret!)
+8. Under "Privileged Gateway Intents", enable:
+   - Message Content Intent (required to read message content)
+
+### Environment Variables Summary
+
+| Variable | Where to Find | Description |
+|----------|--------------|-------------|
+| `GOOGLE_CLIENT_ID` | Google Cloud Console → APIs & Services → Credentials → OAuth 2.0 Client IDs | Your Google OAuth client ID |
+| `GOOGLE_CLIENT_SECRET` | Google Cloud Console → APIs & Services → Credentials → OAuth 2.0 Client IDs | Your Google OAuth client secret |
+| `DISCORD_APPLICATION_ID` | Discord Developer Portal → Your App → General Information | Discord application/client ID |
+| `DISCORD_PUBLIC_KEY` | Discord Developer Portal → Your App → General Information | Discord public key for verification |
+| `DISCORD_BOT_TOKEN` | Discord Developer Portal → Your App → Bot → Token | Secret bot token (don't share!) |
 
 ### Deployment Steps
 
 1. Click "Deploy to Netlify" button above
-2. Set environment variables in Netlify:
-   ```
-   GOOGLE_CLIENT_ID=your_google_client_id
-   GOOGLE_CLIENT_SECRET=your_google_client_secret
-   DISCORD_APPLICATION_ID=your_discord_app_id
-   DISCORD_PUBLIC_KEY=your_discord_public_key
-   DISCORD_BOT_TOKEN=your_discord_bot_token
-   ```
-3. Visit your deployed site and follow the setup wizard
-4. Authorize Google Drive access
-5. Select default upload folder
-6. Add bot to your Discord server
+2. Fill in all the environment variables from the table above
+3. Complete the deployment
+4. Update Google OAuth redirect URI:
+   - Get your Netlify site URL (e.g., `https://amazing-site-123.netlify.app`)
+   - Go back to Google Cloud Console → Credentials
+   - Edit your OAuth 2.0 Client ID
+   - Update the redirect URI to: `https://your-actual-site.netlify.app/auth/google/callback`
+5. Visit your deployed site and follow the setup wizard
+6. Authorize Google Drive access
+7. Select default upload folder
+8. Add bot to your Discord server using the generated invite link
 
 ## Bot Commands
 
@@ -102,6 +134,37 @@ npm test
 ## License
 
 MIT License - see LICENSE file for details
+
+## Troubleshooting
+
+### Common Issues
+
+1. **"Invalid redirect URI" error during Google OAuth**
+   - Make sure your redirect URI in Google Cloud Console exactly matches your Netlify URL
+   - Format should be: `https://your-site-name.netlify.app/auth/google/callback`
+
+2. **Bot doesn't respond to commands**
+   - Ensure the bot has proper permissions in your Discord server
+   - Check that Message Content Intent is enabled in Discord Developer Portal
+   - Verify the bot token is correct in Netlify environment variables
+
+3. **"Not authenticated with Google" error**
+   - Complete the Google OAuth flow in the setup wizard
+   - Check that Google Drive API is enabled in your Google Cloud project
+
+4. **Files not uploading**
+   - Use `/upload-info` to check if the channel is configured
+   - Ensure the bot has access to the Discord channel
+   - Check that the Google Drive folder still exists
+
+### Required Discord Bot Permissions
+
+When inviting the bot, ensure it has these permissions:
+- Read Messages
+- Send Messages
+- Read Message History
+- Attach Files
+- Use Slash Commands
 
 ## Support
 
