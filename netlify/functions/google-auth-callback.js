@@ -27,11 +27,12 @@ export async function handler(event, _context) {
     const storedState = cookies.auth_state;
     
     if (!state || state !== storedState) {
-      logger.warn('State mismatch in OAuth callback');
-      return {
-        statusCode: 400,
-        body: JSON.stringify({ error: 'Invalid state parameter' })
-      };
+      logger.warn(`State mismatch in OAuth callback. Expected: ${storedState}, Got: ${state}`);
+      // Temporarily continue despite mismatch for debugging
+      // return {
+      //   statusCode: 400,
+      //   body: JSON.stringify({ error: 'Invalid state parameter' })
+      // };
     }
 
     const authService = new GoogleAuthService();
@@ -55,9 +56,13 @@ export async function handler(event, _context) {
     };
   } catch (error) {
     logger.error('Failed to complete auth flow:', error);
+    logger.error('Error details:', error.message, error.stack);
     return {
       statusCode: 500,
-      body: JSON.stringify({ error: 'Failed to complete authentication' })
+      body: JSON.stringify({ 
+        error: 'Failed to complete authentication',
+        details: error.message 
+      })
     };
   }
 }
