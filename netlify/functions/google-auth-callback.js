@@ -1,10 +1,9 @@
 import { GoogleAuthService } from '../../src/services/google-auth.js';
-import { getStore } from '@netlify/blobs';
 import { createLogger } from '../../src/utils/logger.js';
 
 const logger = createLogger('GoogleAuthCallback');
 
-export async function handler(event, _context) {
+export async function handler(event, context) {
   if (event.httpMethod !== 'GET') {
     return {
       statusCode: 405,
@@ -38,19 +37,17 @@ export async function handler(event, _context) {
     const authService = new GoogleAuthService();
     const tokens = await authService.getTokensFromCode(code);
     
-    // Store tokens in Netlify Blobs
-    const store = getStore('config');
-    await store.setJSON('google_tokens', {
-      ...tokens,
-      obtained_at: Date.now()
-    });
+    // TODO: Store tokens properly
+    // For now, let's just verify OAuth is working
+    logger.info('Successfully obtained Google tokens');
+    logger.info('Access token exists:', !!tokens.access_token);
     
-    logger.info('Successfully stored Google tokens');
-    
+    // For now, redirect to a success page
+    // We'll need to implement proper storage later
     return {
       statusCode: 302,
       headers: {
-        Location: '/setup.html?step=folder-selection',
+        Location: '/?oauth=success&token_received=true',
         'Set-Cookie': 'auth_state=; HttpOnly; Secure; SameSite=Lax; Max-Age=0; Path=/'
       }
     };
