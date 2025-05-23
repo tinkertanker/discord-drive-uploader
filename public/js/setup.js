@@ -44,47 +44,45 @@ async function startGoogleAuth() {
 
 async function loadFolders() {
     const folderList = document.getElementById('folder-list');
-    folderList.innerHTML = '<div class="loading">Loading folders...</div>';
     
-    try {
-        // Get auth token from URL if available
-        const params = new URLSearchParams(window.location.search);
-        const authData = params.get('auth');
-        
-        const headers = {};
-        if (authData) {
-            // Temporarily store in sessionStorage
-            sessionStorage.setItem('auth_data', authData);
-            headers['Authorization'] = `Bearer ${authData}`;
-        } else {
-            // Try to get from sessionStorage
-            const storedAuth = sessionStorage.getItem('auth_data');
-            if (storedAuth) {
-                headers['Authorization'] = `Bearer ${storedAuth}`;
-            }
-        }
-        
-        const response = await fetch('/.netlify/functions/api-folders', { headers });
-        if (!response.ok) throw new Error('Failed to load folders');
-        
-        const folders = await response.json();
-        
-        folderList.innerHTML = '';
-        folders.forEach(folder => {
-            const folderEl = document.createElement('div');
-            folderEl.className = 'folder-item';
-            folderEl.innerHTML = `📁 ${folder.name}`;
-            folderEl.onclick = () => selectFolder(folder.id, folder.name, folderEl);
-            folderList.appendChild(folderEl);
-        });
-        
-        if (folders.length === 0) {
-            folderList.innerHTML = '<div class="loading">No folders found. Create one below.</div>';
-        }
-    } catch (error) {
-        folderList.innerHTML = '<div class="loading">Error loading folders. Please try again.</div>';
-        showError('Failed to load Google Drive folders');
+    // Store auth data from URL if available
+    const params = new URLSearchParams(window.location.search);
+    const authData = params.get('auth');
+    if (authData) {
+        sessionStorage.setItem('auth_data', authData);
+        // Clean URL
+        window.history.replaceState({}, document.title, window.location.pathname);
     }
+    
+    // Get tokens
+    const storedAuth = sessionStorage.getItem('auth_data');
+    if (!storedAuth) {
+        folderList.innerHTML = '<div class="loading">Not authenticated. Please start over.</div>';
+        return;
+    }
+    
+    let tokens;
+    try {
+        tokens = JSON.parse(Buffer.from(storedAuth, 'base64').toString());
+    } catch (e) {
+        folderList.innerHTML = '<div class="loading">Invalid authentication data.</div>';
+        return;
+    }
+    
+    folderList.innerHTML = `
+        <div style="text-align: center; padding: 2rem;">
+            <button class="btn btn-primary" onclick="openFolderPicker()">
+                📁 Choose Google Drive Folder
+            </button>
+            <div id="selected-folder" style="margin-top: 1rem;"></div>
+        </div>
+    `;
+    
+    // Initialize Google API
+    window.googleTokens = tokens;
+    gapi.load('picker', () => {
+        console.log('Google Picker API loaded');
+    });
 }
 
 function selectFolder(folderId, folderName, element) {
@@ -208,6 +206,41 @@ function copyInviteLink() {
 function getMeta(name) {
     const element = document.querySelector(`meta[name="${name}"]`);
     return element ? element.content : null;
+}
+
+function openFolderPicker() {
+    if (!window.googleTokens) {
+        showError('Not authenticated with Google');
+        return;
+    }
+
+    const picker = new google.picker.PickerBuilder()
+        .setOAuthToken(window.googleTokens.access_token)
+        .addView(new google.picker.DocsView()
+            .setIncludeFolders(true)
+            .setSelectFolderEnabled(true)
+            .setMimeTypes('application/vnd.google-apps.folder'))
+        .setCallback(pickerCallback)
+        .setTitle('Select a folder for Discord uploads')
+        .build();
+    
+    picker.setVisible(true);
+}
+
+function pickerCallback(data) {
+    if (data.action === google.picker.Action.PICKED) {
+        const folder = data.docs[0];
+        selectedFolderId = folder.id;
+        selectedFolderName = folder.name;
+        
+        // Show selected folder
+        document.getElementById('selected-folder').innerHTML = `
+            <div style="padding: 1rem; background: var(--background); border-radius: 6px;">
+                <p>Selected folder: <strong>${folder.name}</strong></p>
+                <button class="btn btn-primary" onclick="saveFolderAndContinue()">Continue</button>
+            </div>
+        `;
+    }
 }
 
 // Check URL parameters for OAuth callback
