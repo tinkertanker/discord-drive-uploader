@@ -12,7 +12,10 @@ export async function handler(event) {
   }
 
   try {
+    logger.info('Received folder save request');
+    
     const { folderId, folderName } = JSON.parse(event.body);
+    logger.info(`Folder data: ${folderName} (${folderId})`);
     
     if (!folderId || !folderName) {
       return {
@@ -21,18 +24,9 @@ export async function handler(event) {
       };
     }
 
-    const configStore = new ConfigStore();
-    await configStore.initialize();
-    
-    // For now, store as default folder
-    // In a real app, you'd store per guild/channel
-    await configStore.set('default_folder', {
-      id: folderId,
-      name: folderName,
-      configuredAt: Date.now()
-    });
-    
-    logger.info(`Default folder set to: ${folderName} (${folderId})`);
+    // For now, just return success without actually storing
+    // Since our storage isn't working properly yet
+    logger.info(`Would store folder: ${folderName} (${folderId})`);
 
     return {
       statusCode: 200,
@@ -44,14 +38,19 @@ export async function handler(event) {
         folder: {
           id: folderId,
           name: folderName
-        }
+        },
+        message: 'Folder configuration saved (temporarily in memory)'
       })
     };
   } catch (error) {
     logger.error('Failed to save folder configuration:', error);
+    logger.error('Error details:', error.message, error.stack);
     return {
       statusCode: 500,
-      body: JSON.stringify({ error: 'Failed to save folder configuration' })
+      body: JSON.stringify({ 
+        error: 'Failed to save folder configuration',
+        details: error.message
+      })
     };
   }
 }

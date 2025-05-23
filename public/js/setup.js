@@ -151,11 +151,18 @@ async function saveFolderAndContinue() {
             })
         });
         
-        if (!response.ok) throw new Error('Failed to save folder configuration');
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.details || errorData.error || 'Failed to save folder configuration');
+        }
+        
+        const result = await response.json();
+        console.log('Folder save result:', result);
         
         nextStep();
     } catch (error) {
-        showError('Failed to save folder configuration');
+        console.error('Save folder error:', error);
+        showError('Failed to save folder configuration: ' + error.message);
     }
 }
 
