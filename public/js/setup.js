@@ -136,9 +136,15 @@ async function saveFolderAndContinue() {
     }
     
     try {
+        const authData = sessionStorage.getItem('auth_data');
+        const headers = { 'Content-Type': 'application/json' };
+        if (authData) {
+            headers['Authorization'] = `Bearer ${authData}`;
+        }
+        
         const response = await fetch('/.netlify/functions/api-config-folder', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers,
             body: JSON.stringify({ 
                 folderId: selectedFolderId,
                 folderName: selectedFolderName 
@@ -221,8 +227,14 @@ function openFolderPicker() {
             .setIncludeFolders(true)
             .setSelectFolderEnabled(true)
             .setMimeTypes('application/vnd.google-apps.folder'))
+        .addView(new google.picker.DocsView()
+            .setIncludeFolders(true)
+            .setSelectFolderEnabled(true)
+            .setEnableDrives(true)
+            .setMimeTypes('application/vnd.google-apps.folder'))
         .setCallback(pickerCallback)
         .setTitle('Select a folder for Discord uploads')
+        .enableFeature(google.picker.Feature.SUPPORT_DRIVES)
         .build();
     
     picker.setVisible(true);
