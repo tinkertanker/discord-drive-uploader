@@ -26,3 +26,7 @@
   port = 8888
   targetPort = 3000
   autoLaunch = true
+
+[[edge_functions]]
+  path = "/*"
+  function = "inject-env"

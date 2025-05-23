@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="discord-app-id" content="%DISCORD_APPLICATION_ID%">
+    <title>Discord Drive Uploader - Setup</title>
+    <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>📸 Discord Drive Uploader</h1>
+            <p>Upload Discord photos and videos to Google Drive automatically</p>
+        </header>
+
+        <main>
+            <div id="setup-wizard" class="wizard">
+                <!-- Step 1: Welcome -->
+                <div class="step active" data-step="1">
+                    <h2>Welcome!</h2>
+                    <p>This bot will automatically upload photos and videos from your Discord channels to Google Drive folders.</p>
+                    <div class="features">
+                        <div class="feature">✅ Auto-upload media from Discord</div>
+                        <div class="feature">📁 Organize by channel</div>
+                        <div class="feature">🎨 Updates bot avatar</div>
+                        <div class="feature">💬 Smart file naming</div>
+                    </div>
+                    <button class="btn btn-primary" onclick="nextStep()">Get Started</button>
+                </div>
+
+                <!-- Step 2: Google Auth -->
+                <div class="step" data-step="2">
+                    <h2>Connect Google Drive</h2>
+                    <p>First, let's connect your Google Drive account.</p>
+                    <button class="btn btn-google" onclick="startGoogleAuth()">
+                        <img src="https://www.google.com/favicon.ico" alt="Google">
+                        Sign in with Google
+                    </button>
+                    <div class="info">
+                        <small>We'll only access folders you choose and files we upload.</small>
+                    </div>
+                </div>
+
+                <!-- Step 3: Folder Selection -->
+                <div class="step" data-step="3">
+                    <h2>Select Default Folder</h2>
+                    <p>Choose a default Google Drive folder for uploads:</p>
+                    <div id="folder-list" class="folder-list">
+                        <div class="loading">Loading folders...</div>
+                    </div>
+                    <button class="btn btn-secondary" onclick="createNewFolder()">Create New Folder</button>
+                </div>
+
+                <!-- Step 4: Discord Setup -->
+                <div class="step" data-step="4">
+                    <h2>Discord Bot Token</h2>
+                    <p>Enter your Discord bot token:</p>
+                    <input type="password" id="discord-token" placeholder="Your Discord Bot Token" class="input">
+                    <div class="info">
+                        <small>Don't have a bot yet? <a href="https://discord.com/developers/applications" target="_blank">Create one here</a></small>
+                    </div>
+                    <button class="btn btn-primary" onclick="saveDiscordToken()">Continue</button>
+                </div>
+
+                <!-- Step 5: Success -->
+                <div class="step" data-step="5">
+                    <h2>🎉 Setup Complete!</h2>
+                    <p>Your Discord Drive Uploader is ready to go!</p>
+                    <div class="success-info">
+                        <h3>Next Steps:</h3>
+                        <ol>
+                            <li>Add the bot to your Discord server using this link:</li>
+                        </ol>
+                        <div class="invite-link">
+                            <input type="text" id="bot-invite" readonly class="input">
+                            <button class="btn btn-secondary" onclick="copyInviteLink()">Copy</button>
+                        </div>
+                        <p>Once added, use <code>/setup-folder</code> in any channel to configure uploads!</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="error-message" id="error-message"></div>
+        </main>
+
+        <footer>
+            <p>Made with ❤️ by Tinkertanker</p>
+        </footer>
+    </div>
+
+    <script src="/js/setup.js"></script>
+</body>
+</html>
