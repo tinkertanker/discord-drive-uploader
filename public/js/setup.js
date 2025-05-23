@@ -64,7 +64,7 @@ async function loadFolders() {
             }
         }
         
-        const response = await fetch('/api/folders', { headers });
+        const response = await fetch('/.netlify/functions/api-folders', { headers });
         if (!response.ok) throw new Error('Failed to load folders');
         
         const folders = await response.json();
@@ -114,7 +114,7 @@ async function createNewFolder() {
     if (!folderName) return;
     
     try {
-        const response = await fetch('/api/folders/create', {
+        const response = await fetch('/.netlify/functions/api-folders-create', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ name: folderName })
@@ -137,7 +137,7 @@ async function saveFolderAndContinue() {
     }
     
     try {
-        const response = await fetch('/api/config/folder', {
+        const response = await fetch('/.netlify/functions/api-config-folder', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ 
@@ -162,7 +162,7 @@ async function saveDiscordToken() {
     }
     
     try {
-        const response = await fetch('/api/config/discord', {
+        const response = await fetch('/.netlify/functions/api-config-discord', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ token })
