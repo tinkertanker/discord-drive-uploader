@@ -72,6 +72,7 @@ If you want to set up the correct redirect URI from the start:
 |----------|--------------|-------------|
 | `GOOGLE_CLIENT_ID` | Google Cloud Console → APIs & Services → Credentials → OAuth 2.0 Client IDs | Your Google OAuth client ID |
 | `GOOGLE_CLIENT_SECRET` | Google Cloud Console → APIs & Services → Credentials → OAuth 2.0 Client IDs | Your Google OAuth client secret |
+| `GOOGLE_REDIRECT_URI` | Your Netlify URL + `/auth/google/callback` | Must match Google's authorized redirect URIs |
 | `DISCORD_APPLICATION_ID` | Discord Developer Portal → Your App → General Information | Discord application/client ID |
 | `DISCORD_PUBLIC_KEY` | Discord Developer Portal → Your App → General Information | Discord public key for verification |
 | `DISCORD_BOT_TOKEN` | Discord Developer Portal → Your App → Bot → Token | Secret bot token (don't share!) |
@@ -79,21 +80,27 @@ If you want to set up the correct redirect URI from the start:
 ### Deployment Steps
 
 1. Click "Deploy to Netlify" button above
-2. Fill in all the environment variables from the table above
+2. Fill in the environment variables:
+   - Use temporary values for `GOOGLE_REDIRECT_URI` during initial deployment
+   - Example: `https://temp.netlify.app/auth/google/callback`
 3. Complete the deployment
-4. **Important: Update Google OAuth redirect URI**:
-   - After deployment, Netlify will show your site URL (e.g., `https://amazing-site-123.netlify.app`)
+4. **After deployment, get your actual Netlify URL** (e.g., `https://amazing-site-123.netlify.app`)
+5. **Update environment variables in Netlify**:
+   - Go to Site configuration → Environment variables
+   - Update `GOOGLE_REDIRECT_URI` to: `https://your-actual-site.netlify.app/auth/google/callback`
+   - Redeploy for changes to take effect
+6. **Update Google OAuth redirect URI**:
    - Go back to [Google Cloud Console](https://console.cloud.google.com/) → APIs & Services → Credentials
    - Click on your OAuth 2.0 Client ID to edit it
    - Remove the temporary `localhost:8888` redirect URI
    - Add your actual Netlify URL: `https://your-actual-site.netlify.app/auth/google/callback`
    - Save the changes
-5. Visit your deployed site and follow the setup wizard
-6. Authorize Google Drive access
-7. Select default upload folder
-8. Add bot to your Discord server using the generated invite link
+7. Visit your deployed site and follow the setup wizard
+8. Authorize Google Drive access
+9. Select default upload folder
+10. Add bot to your Discord server using the generated invite link
 
-> **Note**: The Google OAuth flow won't work until you update the redirect URI with your actual Netlify URL!
+> **Note**: The Google OAuth flow won't work until both the Netlify environment variable and Google's authorized redirect URI are updated with your actual Netlify URL!
 
 ## Bot Commands
 

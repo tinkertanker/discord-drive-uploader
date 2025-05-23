@@ -12,6 +12,10 @@
       "description": "Google OAuth2 Client Secret from Google Cloud Console",
       "required": true
     },
+    "GOOGLE_REDIRECT_URI": {
+      "description": "OAuth redirect URI (update after deployment with actual URL)",
+      "required": true
+    },
     "DISCORD_APPLICATION_ID": {
       "description": "Discord Application ID from Discord Developer Portal",
       "required": true
