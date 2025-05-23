@@ -21,6 +21,7 @@ function showStep(step) {
             loadFolders();
         } else if (step === 5) {
             generateInviteLink();
+            loadSetupComplete();
         }
     }
 }
@@ -220,6 +221,32 @@ function copyInviteLink() {
 function getMeta(name) {
     const element = document.querySelector(`meta[name="${name}"]`);
     return element ? element.content : null;
+}
+
+async function loadSetupComplete() {
+    try {
+        const response = await fetch('/.netlify/functions/api-setup-complete');
+        const data = await response.json();
+        
+        if (data.envVars && data.envVars.length > 0) {
+            const envVarsEl = document.getElementById('env-vars');
+            envVarsEl.innerHTML = `
+                <div style="background: var(--background); padding: 1rem; border-radius: 6px; margin: 1rem 0;">
+                    <ol style="margin-left: 1.5rem;">
+                        ${data.envVars.map(env => `
+                            <li style="margin: 0.5rem 0;">
+                                <strong>${env.key}</strong> (${env.description})
+                                <pre style="background: #000; padding: 0.5rem; margin: 0.5rem 0; overflow-x: auto; font-size: 0.8rem;">${env.value}</pre>
+                            </li>
+                        `).join('')}
+                    </ol>
+                    <p style="margin-top: 1rem;">Go to Netlify → Site configuration → Environment variables to add these.</p>
+                </div>
+            `;
+        }
+    } catch (error) {
+        console.error('Failed to load setup complete data:', error);
+    }
 }
 
 function openFolderPicker() {

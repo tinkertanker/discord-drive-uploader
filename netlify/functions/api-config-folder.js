@@ -24,9 +24,17 @@ export async function handler(event) {
       };
     }
 
-    // For now, just return success without actually storing
-    // Since our storage isn't working properly yet
-    logger.info(`Would store folder: ${folderName} (${folderId})`);
+    // Store the folder configuration
+    const configStore = new ConfigStore();
+    await configStore.initialize();
+    
+    await configStore.store.set('default_folder', {
+      id: folderId,
+      name: folderName,
+      configuredAt: Date.now()
+    });
+    
+    logger.info(`Folder configuration stored: ${folderName} (${folderId})`);
 
     return {
       statusCode: 200,
@@ -39,7 +47,7 @@ export async function handler(event) {
           id: folderId,
           name: folderName
         },
-        message: 'Folder configuration saved (temporarily in memory)'
+        message: 'Folder configuration saved'
       })
     };
   } catch (error) {

@@ -66,12 +66,13 @@
                 <!-- Step 5: Success -->
                 <div class="step" data-step="5">
                     <h2>🎉 Setup Complete!</h2>
-                    <p>Your Discord Drive Uploader is ready to go!</p>
+                    <p>Your Discord Drive Uploader is configured!</p>
                     <div class="success-info">
-                        <h3>Next Steps:</h3>
-                        <ol>
-                            <li>Add the bot to your Discord server using this link:</li>
-                        </ol>
+                        <h3>Important: Save Your Configuration</h3>
+                        <p>To make this configuration permanent, you need to set environment variables in Netlify:</p>
+                        <div id="env-vars" class="loading">Loading configuration...</div>
+                        
+                        <h3 style="margin-top: 2rem;">Bot Invite Link:</h3>
                         <div class="invite-link">
                             <input type="text" id="bot-invite" readonly class="input">
                             <button class="btn btn-secondary" onclick="copyInviteLink()">Copy</button>
