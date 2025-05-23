@@ -6,8 +6,7 @@
   "type": "module",
   "scripts": {
     "dev": "netlify dev",
-    "build": "npm run build:functions",
-    "build:functions": "netlify-lambda build netlify/functions",
+    "build": "echo 'No build needed - Netlify handles functions automatically'",
     "test": "NODE_OPTIONS=--experimental-vm-modules jest",
     "lint": "eslint src/ netlify/functions/",
     "format": "prettier --write \"**/*.{js,json,md}\""
@@ -34,7 +33,6 @@
     "eslint": "^8.54.0",
     "jest": "^29.7.0",
     "netlify-cli": "^17.10.1",
-    "netlify-lambda": "^2.0.16",
     "prettier": "^3.1.0"
   }
 }
