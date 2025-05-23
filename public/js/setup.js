@@ -63,8 +63,9 @@ async function loadFolders() {
     
     let tokens;
     try {
-        tokens = JSON.parse(Buffer.from(storedAuth, 'base64').toString());
+        tokens = JSON.parse(atob(storedAuth));
     } catch (e) {
+        console.error('Failed to parse auth data:', e);
         folderList.innerHTML = '<div class="loading">Invalid authentication data.</div>';
         return;
     }
