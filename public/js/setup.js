@@ -47,7 +47,24 @@ async function loadFolders() {
     folderList.innerHTML = '<div class="loading">Loading folders...</div>';
     
     try {
-        const response = await fetch('/api/folders');
+        // Get auth token from URL if available
+        const params = new URLSearchParams(window.location.search);
+        const authData = params.get('auth');
+        
+        const headers = {};
+        if (authData) {
+            // Temporarily store in sessionStorage
+            sessionStorage.setItem('auth_data', authData);
+            headers['Authorization'] = `Bearer ${authData}`;
+        } else {
+            // Try to get from sessionStorage
+            const storedAuth = sessionStorage.getItem('auth_data');
+            if (storedAuth) {
+                headers['Authorization'] = `Bearer ${storedAuth}`;
+            }
+        }
+        
+        const response = await fetch('/api/folders', { headers });
         if (!response.ok) throw new Error('Failed to load folders');
         
         const folders = await response.json();
@@ -198,10 +215,13 @@ window.addEventListener('DOMContentLoaded', () => {
     const params = new URLSearchParams(window.location.search);
     const hash = window.location.hash;
     
-    if (params.get('step') === 'folder-selection' || hash === '#step-3') {
+    if (params.get('step') === '3' || params.get('step') === 'folder-selection' || hash === '#step-3') {
         showStep(3);
     } else if (params.get('oauth') === 'success') {
         // OAuth was successful, show folder selection
+        showStep(3);
+    } else if (params.get('auth')) {
+        // We have auth data, show folder selection
         showStep(3);
     }
 });

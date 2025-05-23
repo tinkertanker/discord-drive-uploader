@@ -45,11 +45,19 @@ export async function handler(event, context) {
     
     logger.info('Successfully stored Google tokens');
     
-    // Redirect to folder selection step
+    // For now, pass tokens in URL (encrypted would be better in production)
+    // This is temporary until we fix storage
+    const tokenData = Buffer.from(JSON.stringify({
+      access_token: tokens.access_token,
+      refresh_token: tokens.refresh_token,
+      expiry_date: tokens.expiry_date
+    })).toString('base64');
+    
+    // Redirect to folder selection step with tokens
     return {
       statusCode: 302,
       headers: {
-        Location: '/index.html#step-3',
+        Location: `/index.html?step=3&auth=${tokenData}`,
         'Set-Cookie': 'auth_state=; HttpOnly; Secure; SameSite=Lax; Max-Age=0; Path=/'
       }
     };

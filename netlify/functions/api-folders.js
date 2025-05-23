@@ -14,11 +14,27 @@ export async function handler(event) {
   }
 
   try {
-    const configStore = new ConfigStore();
-    await configStore.initialize();
-
-    // Get Google tokens
-    const tokens = await configStore.getGoogleTokens();
+    // Try to get tokens from Authorization header first (temporary solution)
+    const authHeader = event.headers.authorization || event.headers.Authorization;
+    let tokens = null;
+    
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      const authData = authHeader.substring(7);
+      try {
+        tokens = JSON.parse(Buffer.from(authData, 'base64').toString());
+        logger.info('Using tokens from Authorization header');
+      } catch (e) {
+        logger.error('Failed to parse auth header:', e);
+      }
+    }
+    
+    // Fallback to ConfigStore
+    if (!tokens) {
+      const configStore = new ConfigStore();
+      await configStore.initialize();
+      tokens = await configStore.getGoogleTokens();
+    }
+    
     if (!tokens) {
       return {
         statusCode: 401,
