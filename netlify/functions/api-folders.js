@@ -26,8 +26,8 @@ export async function handler(event) {
       };
     }
 
-    // Check if tokens are expired
-    if (tokens.expired) {
+    // Check if tokens are expired and refresh if needed
+    if (tokens.expired || !tokens.access_token) {
       const authService = new GoogleAuthService();
       const newTokens = await authService.refreshAccessToken(tokens.refresh_token);
       await configStore.setGoogleTokens(newTokens);

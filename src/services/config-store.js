@@ -1,4 +1,5 @@
-import { getStore } from '@netlify/blobs';
+// import { getStore } from '@netlify/blobs';
+import { getStore } from './simple-store.js';
 import { createLogger } from '../utils/logger.js';
 
 const logger = createLogger('ConfigStore');

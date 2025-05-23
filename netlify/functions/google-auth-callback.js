@@ -1,4 +1,5 @@
 import { GoogleAuthService } from '../../src/services/google-auth.js';
+import { ConfigStore } from '../../src/services/config-store.js';
 import { createLogger } from '../../src/utils/logger.js';
 
 const logger = createLogger('GoogleAuthCallback');
@@ -37,17 +38,18 @@ export async function handler(event, context) {
     const authService = new GoogleAuthService();
     const tokens = await authService.getTokensFromCode(code);
     
-    // TODO: Store tokens properly
-    // For now, let's just verify OAuth is working
-    logger.info('Successfully obtained Google tokens');
-    logger.info('Access token exists:', !!tokens.access_token);
+    // Store tokens using ConfigStore
+    const configStore = new ConfigStore();
+    await configStore.initialize();
+    await configStore.setGoogleTokens(tokens);
     
-    // For now, redirect to a success page
-    // We'll need to implement proper storage later
+    logger.info('Successfully stored Google tokens');
+    
+    // Redirect to folder selection step
     return {
       statusCode: 302,
       headers: {
-        Location: '/?oauth=success&token_received=true',
+        Location: '/index.html#step-3',
         'Set-Cookie': 'auth_state=; HttpOnly; Secure; SameSite=Lax; Max-Age=0; Path=/'
       }
     };

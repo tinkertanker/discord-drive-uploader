@@ -196,7 +196,12 @@ function getMeta(name) {
 // Check URL parameters for OAuth callback
 window.addEventListener('DOMContentLoaded', () => {
     const params = new URLSearchParams(window.location.search);
-    if (params.get('step') === 'folder-selection') {
+    const hash = window.location.hash;
+    
+    if (params.get('step') === 'folder-selection' || hash === '#step-3') {
+        showStep(3);
+    } else if (params.get('oauth') === 'success') {
+        // OAuth was successful, show folder selection
         showStep(3);
     }
 });
