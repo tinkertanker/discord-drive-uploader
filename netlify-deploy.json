@@ -1,0 +1,28 @@
+{
+  "name": "Discord Drive Uploader",
+  "description": "Upload Discord photos and videos to Google Drive automatically",
+  "repository": "https://github.com/tinkertanker/discord-drive-uploader",
+  "logo": "https://raw.githubusercontent.com/tinkertanker/discord-drive-uploader/main/public/logo.png",
+  "env": {
+    "GOOGLE_CLIENT_ID": {
+      "description": "Google OAuth2 Client ID from Google Cloud Console",
+      "required": true
+    },
+    "GOOGLE_CLIENT_SECRET": {
+      "description": "Google OAuth2 Client Secret from Google Cloud Console",
+      "required": true
+    },
+    "DISCORD_APPLICATION_ID": {
+      "description": "Discord Application ID from Discord Developer Portal",
+      "required": true
+    },
+    "DISCORD_PUBLIC_KEY": {
+      "description": "Discord Application Public Key",
+      "required": true
+    },
+    "DISCORD_BOT_TOKEN": {
+      "description": "Discord Bot Token (optional - can be set later in setup)",
+      "required": false
+    }
+  }
+}

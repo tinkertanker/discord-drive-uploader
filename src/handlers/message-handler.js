@@ -1,4 +1,4 @@
-import { Client, GatewayIntentBits, REST, Routes, AttachmentBuilder } from 'discord.js';
+import { Client, GatewayIntentBits, REST, Routes } from 'discord.js';
 import { ConfigStore } from '../services/config-store.js';
 import { GoogleAuthService } from '../services/google-auth.js';
 import { GoogleDriveService } from '../services/google-drive.js';

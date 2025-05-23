@@ -12,7 +12,7 @@ export class GoogleDriveService {
   async listFolders(pageSize = 100) {
     try {
       const response = await this.drive.files.list({
-        q: "mimeType='application/vnd.google-apps.folder' and trashed=false",
+        q: 'mimeType=\'application/vnd.google-apps.folder\' and trashed=false',
         fields: 'files(id, name, parents)',
         pageSize,
         orderBy: 'name'

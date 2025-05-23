@@ -13,7 +13,7 @@ A Discord bot that automatically uploads photos and videos from Discord channels
 
 ## Quick Deploy
 
-[![Deploy to Netlify](https://www.netlify.com/img/deploy/button.svg)](https://app.netlify.com/start/deploy?repository=https://github.com/tinkertanker/discord-drive-uploader)
+[![Deploy to Netlify](https://www.netlify.com/img/deploy/button.svg)](https://app.netlify.com/start/deploy?repository=https://github.com/tinkertanker/discord-drive-uploader#GOOGLE_CLIENT_ID=&GOOGLE_CLIENT_SECRET=&DISCORD_APPLICATION_ID=&DISCORD_PUBLIC_KEY=)
 
 ## Setup Instructions
 

@@ -4,7 +4,7 @@ import { createLogger } from '../../src/utils/logger.js';
 
 const logger = createLogger('GoogleAuthCallback');
 
-export async function handler(event, context) {
+export async function handler(event, _context) {
   if (event.httpMethod !== 'GET') {
     return {
       statusCode: 405,

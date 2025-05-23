@@ -7,32 +7,32 @@ import { createLogger } from '../utils/logger.js';
 const logger = createLogger('SlashCommands');
 
 export async function handleSlashCommand(interaction) {
-  const { data, guild_id, channel_id } = interaction;
+  const { data } = interaction;
   const commandName = data.name;
 
   try {
     switch (commandName) {
-      case 'setup-folder':
-        return await handleSetupFolder(interaction);
+    case 'setup-folder':
+      return await handleSetupFolder(interaction);
       
-      case 'upload-info':
-        return await handleUploadInfo(interaction);
+    case 'upload-info':
+      return await handleUploadInfo(interaction);
       
-      case 'test-upload':
-        return await handleTestUpload(interaction);
+    case 'test-upload':
+      return await handleTestUpload(interaction);
       
-      default:
-        return {
-          statusCode: 200,
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            type: InteractionResponseType.ChannelMessageWithSource,
-            data: {
-              content: 'Unknown command',
-              flags: 64
-            }
-          })
-        };
+    default:
+      return {
+        statusCode: 200,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: InteractionResponseType.ChannelMessageWithSource,
+          data: {
+            content: 'Unknown command',
+            flags: 64
+          }
+        })
+      };
     }
   } catch (error) {
     logger.error(`Error handling command ${commandName}:`, error);
@@ -117,13 +117,13 @@ async function handleUploadInfo(interaction) {
   const configuredDate = new Date(channelConfig.configuredAt).toLocaleDateString();
   
   return createResponse(
-    `📁 **Upload Configuration**\n` +
+    '📁 **Upload Configuration**\n' +
     `Folder: **${channelConfig.folderName}**\n` +
     `Configured on: ${configuredDate}`
   );
 }
 
-async function handleTestUpload(interaction) {
+async function handleTestUpload(_interaction) {
   return createResponse(
     '🧪 Test upload functionality is not yet implemented.\n' +
     'Try uploading an actual image to test the bot!'

@@ -22,7 +22,7 @@ class Logger {
     } else if (level === LogLevel.WARN) {
       console.warn(prefix, message, ...args);
     } else {
-      console.log(prefix, message, ...args);
+      console.log(prefix, message, ...args); // eslint-disable-line no-console
     }
   }
 
