@@ -357,7 +357,7 @@ const server = createServer(async (req, res) => {
       }
 
       const folders = await handleGoogleFolders(tokens);
-      return sendResponse(res, { folders });
+      return sendResponse(res, json({ folders }));
     }
 
     if (method === 'POST' && pathname === '/api/config-folder') {
@@ -373,7 +373,7 @@ const server = createServer(async (req, res) => {
 
       await configStore.setDefaultFolder(folderId, folderName);
 
-      return sendResponse(res, { success: true, folder: { id: folderId, name: folderName }, message: 'Default folder configured' });
+      return sendResponse(res, json({ success: true, folder: { id: folderId, name: folderName }, message: 'Default folder configured' }));
     }
 
     if (method === 'POST' && pathname === '/api/config-discord') {
@@ -396,7 +396,7 @@ const server = createServer(async (req, res) => {
         logger.error('Bot failed to start after token save:', error);
       });
 
-      return sendResponse(res, { success: true });
+      return sendResponse(res, json({ success: true }));
     }
 
     if (method === 'GET' && pathname === '/api/bot-guilds') {
@@ -405,7 +405,7 @@ const server = createServer(async (req, res) => {
       const runningBot = await getRunningBot(req, res);
       if (!runningBot) return;
 
-      return sendResponse(res, { guilds: runningBot.getConnectedGuilds() });
+      return sendResponse(res, json({ guilds: runningBot.getConnectedGuilds() }));
     }
 
     if (method === 'GET' && pathname === '/api/guild-channels') {
@@ -420,7 +420,7 @@ const server = createServer(async (req, res) => {
       if (!runningBot) return;
 
       const channels = await runningBot.getGuildChannels(guildId);
-      return sendResponse(res, { channels });
+      return sendResponse(res, json({ channels }));
     }
 
     if (method === 'GET' && pathname === '/api/channel-configs') {
@@ -436,12 +436,12 @@ const server = createServer(async (req, res) => {
       }
       const guildMap = new Map(guilds.map((guild) => [guild.id, guild.name]));
 
-      return sendResponse(res, {
+      return sendResponse(res, json({
         configs: configs.map((config) => ({
           ...config,
           guildName: guildMap.get(config.guildId) || 'Unknown server'
         }))
-      });
+      }));
     }
 
     if (method === 'POST' && pathname === '/api/config-channel') {
@@ -459,19 +459,19 @@ const server = createServer(async (req, res) => {
 
       if (body.remove === true) {
         await configStore.removeChannelFolder(guildId, channelId);
-        return sendResponse(res, {
+        return sendResponse(res, json({
           success: true,
           action: 'removed'
-        });
+        }));
       }
 
       const enabled = normalizeBoolean(body.enabled, true);
       if (!enabled) {
         await configStore.setChannelSyncEnabled(guildId, channelId, false);
-        return sendResponse(res, {
+        return sendResponse(res, json({
           success: true,
           action: 'disabled'
-        });
+        }));
       }
 
       const { folderId, folderName } = body;
@@ -480,7 +480,7 @@ const server = createServer(async (req, res) => {
       }
 
       await configStore.setChannelFolder(guildId, channelId, folderId, folderName, true);
-      return sendResponse(res, {
+      return sendResponse(res, json({
         success: true,
         action: 'enabled',
         mapping: {
@@ -489,7 +489,7 @@ const server = createServer(async (req, res) => {
           folderId,
           folderName
         }
-      });
+      }));
     }
 
     if (method === 'GET' && pathname === '/api/setup-complete') {
@@ -499,7 +499,7 @@ const server = createServer(async (req, res) => {
       const discordToken = await configStore.getDiscordBotToken();
       const defaultFolder = await configStore.getDefaultFolder();
 
-      return sendResponse(res, {
+      return sendResponse(res, json({
         success: true,
         message: 'Configuration is stored on disk.',
         configured: {
@@ -508,7 +508,7 @@ const server = createServer(async (req, res) => {
           defaultFolder: Boolean(defaultFolder)
         },
         botInviteUrl: `https://discord.com/api/oauth2/authorize?client_id=${process.env.DISCORD_APPLICATION_ID}&permissions=3072&scope=bot%20applications.commands`
-      });
+      }));
     }
 
     if (method === 'POST' && pathname === '/discord/interactions') {

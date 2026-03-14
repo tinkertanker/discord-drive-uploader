@@ -92,7 +92,8 @@ describe('ConfigStore', () => {
           channel456: {
             driveFolderId: 'folder789',
             folderName: 'My Folder',
-            configuredAt: expect.any(Number)
+            configuredAt: expect.any(Number),
+            enabled: true
           }
         }
       });
@@ -111,6 +112,16 @@ describe('ConfigStore', () => {
 
       const result = await configStore.getChannelFolder('guild123', 'channel456');
       expect(result).toEqual(guildConfig.channels.channel456);
+    });
+
+    test('stores the default folder in the backing store', async () => {
+      await configStore.setDefaultFolder('folder123', 'Uploads');
+
+      expect(mockStore.setJSON).toHaveBeenCalledWith('default_folder', {
+        id: 'folder123',
+        name: 'Uploads',
+        configuredAt: expect.any(Number)
+      });
     });
   });
 

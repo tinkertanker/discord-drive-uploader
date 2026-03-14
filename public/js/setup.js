@@ -86,6 +86,24 @@ function showStep(step) {
   }
 }
 
+function resetToGoogleDriveStep(message) {
+  folders = [];
+  selectedFolderId = null;
+  selectedFolderName = null;
+
+  const params = new URLSearchParams(window.location.search);
+  params.delete('step');
+  params.delete('oauth');
+  const query = params.toString();
+  const nextUrl = query ? `${window.location.pathname}?${query}` : window.location.pathname;
+  window.history.replaceState({}, '', nextUrl);
+
+  showStep(2);
+  if (message) {
+    showError(message);
+  }
+}
+
 function setLinkFeedback(message, isError = false) {
   const feedback = document.getElementById('link-feedback');
   feedback.textContent = message;
@@ -150,14 +168,19 @@ async function loadFolders() {
   folderList.innerHTML = '<div class="loading">Loading folders...</div>';
 
   try {
-    const response = await fetch('/api/folders', { headers: withSetupAuthHeaders() });
+    const response = await apiGet('/api/folders');
     throwIfUnauthorized(response);
     if (!response.ok) {
       const error = await response.json().catch(() => ({}));
       throw new Error(error.error || 'Unable to fetch folders');
     }
 
-    const data = await response.json();
+    const rawBody = await response.text();
+    if (!rawBody.trim()) {
+      throw new Error('Google Drive session is missing or expired');
+    }
+
+    const data = JSON.parse(rawBody);
     folders = data.folders || data;
     if (!folders || folders.length === 0) {
       folderList.innerHTML = '<div class="loading">No folders found</div>';
@@ -177,8 +200,8 @@ async function loadFolders() {
       });
     });
   } catch (error) {
-    folderList.innerHTML = '<div class="loading">Unable to load folders. Connect Google Drive first.</div>';
     console.error(error);
+    resetToGoogleDriveStep(error.message || 'Connect Google Drive first before choosing a folder.');
   }
 }
 

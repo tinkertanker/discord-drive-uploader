@@ -198,7 +198,7 @@ export class ConfigStore {
         name: folderName,
         configuredAt: Date.now()
       };
-      await this.setJSON('default_folder', defaultFolder);
+      await this.store.setJSON('default_folder', defaultFolder);
       logger.info(`Updated default folder to ${folderName} (${folderId})`);
     } catch (error) {
       logger.error('Failed to set default folder:', error);
