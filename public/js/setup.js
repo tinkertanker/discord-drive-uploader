@@ -1,4 +1,5 @@
-let currentStep = 1;
+// Step 1 was removed from the UI, so initial step is "Connect Google Drive" (step 2).
+let currentStep = 2;
 let selectedFolderId = null;
 let selectedFolderName = null;
 const setupTokenStorageKey = 'discord-drive-setup-token';
