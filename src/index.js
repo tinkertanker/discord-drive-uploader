@@ -83,7 +83,7 @@ function setStateCookie(req, res, state) {
   const proto = (req.headers['x-forwarded-proto'] || 'http').toLowerCase();
   const isSecure = proto === 'https';
   const maxAge = state ? 600 : 0;
-  const flags = [`Path=/`, 'HttpOnly', 'SameSite=Lax', `Max-Age=${maxAge}`];
+  const flags = ['Path=/', 'HttpOnly', 'SameSite=Lax', `Max-Age=${maxAge}`];
   if (isSecure) {
     flags.push('Secure');
   }
