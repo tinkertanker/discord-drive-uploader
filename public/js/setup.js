@@ -1,6 +1,62 @@
 let currentStep = 1;
 let selectedFolderId = null;
 let selectedFolderName = null;
+const setupTokenStorageKey = 'discord-drive-setup-token';
+const setupAuthRequired = getMeta('setup-auth-required') === 'true';
+
+function getStoredSetupToken() {
+  return sessionStorage.getItem(setupTokenStorageKey) || '';
+}
+
+function clearStoredSetupToken() {
+  sessionStorage.removeItem(setupTokenStorageKey);
+}
+
+function requestSetupToken() {
+  const token = window.prompt('Enter setup token configured on the server');
+  if (!token) return '';
+
+  const trimmed = token.trim();
+  if (!trimmed) return '';
+
+  sessionStorage.setItem(setupTokenStorageKey, trimmed);
+  return trimmed;
+}
+
+function getSetupToken() {
+  if (!setupAuthRequired) return '';
+
+  let token = getStoredSetupToken();
+  if (token) return token;
+
+  token = requestSetupToken();
+  return token;
+}
+
+function withSetupAuthHeaders(extra = {}) {
+  if (!setupAuthRequired) {
+    return extra;
+  }
+
+  const token = getSetupToken();
+  if (!token) {
+    throw new Error('Setup token required');
+  }
+
+  return {
+    ...extra,
+    'X-Setup-Token': token
+  };
+}
+
+function throwIfUnauthorized(response) {
+  if (response.status !== 401 && response.status !== 403) {
+    return false;
+  }
+
+  clearStoredSetupToken();
+  throw new Error('Invalid or expired setup token');
+}
 
 function nextStep() {
   showStep(currentStep + 1);
@@ -45,7 +101,9 @@ async function loadFolders() {
   folderList.innerHTML = '<div class="loading">Loading folders...</div>';
 
   try {
-    const response = await fetch('/api/folders');
+    const headers = withSetupAuthHeaders();
+    const response = await fetch('/api/folders', { headers });
+    throwIfUnauthorized(response);
     if (!response.ok) {
       const error = await response.json().catch(() => ({}));
       throw new Error(error.error || 'Unable to fetch folders');
@@ -99,16 +157,19 @@ async function saveFolderAndContinue() {
   }
 
   try {
+    const headers = withSetupAuthHeaders({
+      'Content-Type': 'application/json'
+    });
+
     const response = await fetch('/api/config-folder', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
+      headers,
       body: JSON.stringify({
         folderId: selectedFolderId,
         folderName: selectedFolderName
       })
     });
+    throwIfUnauthorized(response);
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
@@ -129,13 +190,16 @@ async function saveDiscordToken() {
   }
 
   try {
+    const headers = withSetupAuthHeaders({
+      'Content-Type': 'application/json'
+    });
+
     const response = await fetch('/api/config-discord', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
+      headers,
       body: JSON.stringify({ token })
     });
+    throwIfUnauthorized(response);
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
@@ -177,7 +241,11 @@ function getMeta(name) {
 
 async function loadSetupComplete() {
   try {
-    const response = await fetch('/api/setup-complete');
+    const responseWithAuth = await fetch('/api/setup-complete', {
+      headers: withSetupAuthHeaders()
+    });
+    throwIfUnauthorized(responseWithAuth);
+    const response = responseWithAuth;
     if (!response.ok) {
       return;
     }

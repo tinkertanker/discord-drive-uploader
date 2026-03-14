@@ -34,9 +34,20 @@ export class ConfigStore {
 
   async setGoogleTokens(tokens) {
     try {
-      await this.store.setJSON('google_tokens', {
+      const existing = await this.store.get('google_tokens');
+
+      const merged = {
+        ...(existing || {}),
         ...tokens,
         obtained_at: Date.now()
+      };
+
+      if (existing?.refresh_token && !merged.refresh_token) {
+        merged.refresh_token = existing.refresh_token;
+      }
+
+      await this.store.setJSON('google_tokens', {
+        ...merged
       });
       logger.info('Google tokens updated');
     } catch (error) {

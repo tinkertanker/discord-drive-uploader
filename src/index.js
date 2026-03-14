@@ -19,9 +19,11 @@ await configStore.initialize();
 
 const PORT = Number(process.env.PORT || 3000);
 const ALLOWED_EMAIL_DOMAINS = (process.env.ALLOWED_EMAIL_DOMAINS || process.env.ALLOWED_EMAIL_DOMAIN || 'tinkertanker.com').toLowerCase().split(',').map((domain) => domain.trim()).filter(Boolean);
+const SETUP_API_TOKEN = (process.env.SETUP_API_TOKEN || '').trim();
 const BASE_DIR = dirname(fileURLToPath(import.meta.url));
 const PUBLIC_DIR = join(BASE_DIR, '..', 'public');
 const oauthState = new Map();
+const OAUTH_STATE_TTL_MS = 10 * 60 * 1000;
 let bot = null;
 let botStartPromise = null;
 
@@ -105,6 +107,61 @@ function isEmailAllowed(email) {
   return ALLOWED_EMAIL_DOMAINS.includes(domain);
 }
 
+function cleanupOAuthState() {
+  const now = Date.now();
+  for (const [state, startedAt] of oauthState.entries()) {
+    if (now - startedAt > OAUTH_STATE_TTL_MS) {
+      oauthState.delete(state);
+    }
+  }
+}
+
+function getSetupTokenFromRequest(req) {
+  if (!SETUP_API_TOKEN) {
+    return null;
+  }
+
+  const headerToken = req.headers['x-setup-token'];
+  if (headerToken) {
+    return headerToken;
+  }
+
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return null;
+  }
+
+  return authHeader.slice(7);
+}
+
+function isAuthorizedSetupRequest(req, res) {
+  if (!SETUP_API_TOKEN) {
+    return true;
+  }
+
+  const token = getSetupTokenFromRequest(req);
+  if (!token) {
+    sendResponse(res, json({ error: 'Setup token required' }, 401));
+    return false;
+  }
+
+  const tokenBuffer = Buffer.from(token);
+  const expectedBuffer = Buffer.from(SETUP_API_TOKEN);
+
+  if (tokenBuffer.length !== expectedBuffer.length || !timingSafeEqual(tokenBuffer, expectedBuffer)) {
+    sendResponse(res, json({ error: 'Invalid setup token' }, 403));
+    return false;
+  }
+
+  return true;
+}
+
+function renderIndexPage(html) {
+  return html
+    .replace('%DISCORD_APPLICATION_ID%', process.env.DISCORD_APPLICATION_ID || '')
+    .replace('%SETUP_AUTH_REQUIRED%', SETUP_API_TOKEN ? 'true' : 'false');
+}
+
 async function ensureBotRunning() {
   if (bot) return bot;
   if (botStartPromise) return botStartPromise;
@@ -151,7 +208,7 @@ async function readStaticFile(filePath, res) {
     const extension = extname(normalized);
     if (extension === '.html') {
       const html = await fs.readFile(normalized, 'utf8');
-      const replaced = html.replace('%DISCORD_APPLICATION_ID%', process.env.DISCORD_APPLICATION_ID || '');
+      const replaced = renderIndexPage(html);
       res.statusCode = 200;
       res.setHeader('content-type', mimeTypes[extension] || 'text/html; charset=utf-8');
       res.end(replaced);
@@ -167,9 +224,11 @@ async function readStaticFile(filePath, res) {
     const fallbackStats = statSync(fallback);
     if (!fallbackStats.isFile()) throw error;
 
+    const html = await fs.readFile(fallback, 'utf8');
+    const replaced = renderIndexPage(html);
     res.statusCode = 200;
     res.setHeader('content-type', 'text/html; charset=utf-8');
-    createReadStream(fallback).pipe(res);
+    res.end(replaced);
   }
 }
 
@@ -203,6 +262,7 @@ const server = createServer(async (req, res) => {
 
     if (method === 'GET' && pathname === '/auth/google/start') {
       try {
+        cleanupOAuthState();
         const authService = new GoogleAuthService();
         const state = randomBytes(16).toString('hex');
         oauthState.set(state, Date.now());
@@ -218,6 +278,7 @@ const server = createServer(async (req, res) => {
     }
 
     if (method === 'GET' && pathname === '/auth/google/callback') {
+      cleanupOAuthState();
       const code = requestUrl.searchParams.get('code');
       const state = requestUrl.searchParams.get('state');
       const cookieState = getCookie(req, 'discord-drive-state');
@@ -263,6 +324,8 @@ const server = createServer(async (req, res) => {
     }
 
     if (method === 'GET' && pathname === '/api/folders') {
+      if (!isAuthorizedSetupRequest(req, res)) return;
+
       const tokens = await configStore.getGoogleTokens();
       if (!tokens) {
         return sendResponse(res, json({ error: 'Not authenticated with Google' }, 401));
@@ -273,6 +336,8 @@ const server = createServer(async (req, res) => {
     }
 
     if (method === 'POST' && pathname === '/api/config-folder') {
+      if (!isAuthorizedSetupRequest(req, res)) return;
+
       const body = await readJsonBody(req, res);
       if (body === null) return;
 
@@ -287,6 +352,8 @@ const server = createServer(async (req, res) => {
     }
 
     if (method === 'POST' && pathname === '/api/config-discord') {
+      if (!isAuthorizedSetupRequest(req, res)) return;
+
       const body = await readJsonBody(req, res);
       if (body === null) return;
 
@@ -308,6 +375,8 @@ const server = createServer(async (req, res) => {
     }
 
     if (method === 'GET' && pathname === '/api/setup-complete') {
+      if (!isAuthorizedSetupRequest(req, res)) return;
+
       const googleTokens = await configStore.getGoogleTokens();
       const discordToken = await configStore.getDiscordBotToken();
       const defaultFolder = await configStore.getDefaultFolder();
