@@ -88,12 +88,14 @@ A Discord bot that automatically uploads photos and videos from Discord channels
 1. Point `discord-drive-uploader.tk.sg` to your Mac mini.
 2. Set `GOOGLE_REDIRECT_URI` to:
    - `https://discord-drive-uploader.tk.sg/auth/google/callback`
-3. Keep `docker-compose.yml` exposing the service and route `discord-drive-uploader.tk.sg` to port `3000` via your reverse proxy (nginx, Traefik, Caddy, etc.).
+3. Keep `docker-compose.yml` exposing the service, attach it to the `devtksg` external network, and route `discord-drive-uploader.tk.sg` to port `3000` via your reverse proxy (nginx, Traefik, Caddy, etc.).
 4. Update any OAuth client/domain settings to match the same domain.
+5. Set `PRODUCTION_HOST=discord-drive-uploader.tk.sg` in `.env`.
 
 #### Docker quick start
 
 ```bash
+export PRODUCTION_HOST='discord-drive-uploader.tk.sg'
 cp .env.example .env
 # fill in the values in .env
 docker compose up --build -d

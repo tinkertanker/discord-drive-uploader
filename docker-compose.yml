@@ -2,14 +2,21 @@ services:
   discord-drive-uploader:
     build: .
     image: discord-drive-uploader:local
-    container_name: discord-drive-uploader
+    expose:
+      - 3000
     environment:
-      VIRTUAL_HOST: discord-drive-uploader.tk.sg
+      VIRTUAL_HOST: ${PRODUCTION_HOST:-discord-drive-uploader.tk.sg}
       VIRTUAL_PORT: 3000
-    ports:
-      - "3000:3000"
+      NODE_ENV: production
+      CLIENT_MAX_BODY_SIZE: 20M
     volumes:
       - ./data:/data
     env_file:
       - .env
-    restart: unless-stopped
+    networks:
+      - devtksg
+    restart: always
+
+networks:
+  devtksg:
+    external: true
