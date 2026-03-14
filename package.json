@@ -10,7 +10,8 @@
     "build": "echo 'No build step required for this service'",
     "test": "NODE_OPTIONS=--experimental-vm-modules jest",
     "lint": "eslint src/",
-    "format": "prettier --write \"**/*.{js,json,md}\""
+    "format": "prettier --write \"**/*.{js,json,md}\"",
+    "deploy": "bash ./scripts/deploy.sh"
   },
   "keywords": [
     "discord",

@@ -6,12 +6,15 @@ import { randomBytes, timingSafeEqual } from 'node:crypto';
 import { URL } from 'node:url';
 import { fileURLToPath } from 'node:url';
 import { dirname } from 'node:path';
+import { config } from 'dotenv';
 import { GoogleAuthService } from './services/google-auth.js';
 import { ConfigStore } from './services/config-store.js';
 import { GoogleDriveService } from './services/google-drive.js';
 import { DiscordBot } from './handlers/message-handler.js';
 import { createLogger } from './utils/logger.js';
 import { handleDiscordInteraction } from './handlers/discord-interactions.js';
+
+config();
 
 const logger = createLogger('Server');
 const configStore = new ConfigStore();
@@ -181,6 +184,28 @@ async function ensureBotRunning() {
   });
 
   return botStartPromise;
+}
+
+function normalizeBoolean(value, fallback = false) {
+  if (typeof value === 'boolean') {
+    return value;
+  }
+
+  if (typeof value === 'string') {
+    const lowered = value.toLowerCase();
+    return lowered === 'true' || lowered === '1';
+  }
+
+  return fallback;
+}
+
+async function getRunningBot(req, res) {
+  try {
+    return await ensureBotRunning();
+  } catch (error) {
+    sendResponse(res, json({ error: error.message || 'Bot is not running' }, 503));
+    return null;
+  }
 }
 
 async function readJsonBody(req, res) {
@@ -372,6 +397,99 @@ const server = createServer(async (req, res) => {
       });
 
       return sendResponse(res, { success: true });
+    }
+
+    if (method === 'GET' && pathname === '/api/bot-guilds') {
+      if (!isAuthorizedSetupRequest(req, res)) return;
+
+      const runningBot = await getRunningBot(req, res);
+      if (!runningBot) return;
+
+      return sendResponse(res, { guilds: runningBot.getConnectedGuilds() });
+    }
+
+    if (method === 'GET' && pathname === '/api/guild-channels') {
+      if (!isAuthorizedSetupRequest(req, res)) return;
+
+      const guildId = requestUrl.searchParams.get('guildId');
+      if (!guildId) {
+        return sendResponse(res, json({ error: 'guildId query parameter is required' }, 400));
+      }
+
+      const runningBot = await getRunningBot(req, res);
+      if (!runningBot) return;
+
+      const channels = await runningBot.getGuildChannels(guildId);
+      return sendResponse(res, { channels });
+    }
+
+    if (method === 'GET' && pathname === '/api/channel-configs') {
+      if (!isAuthorizedSetupRequest(req, res)) return;
+
+      const configs = await configStore.getAllChannelConfigs();
+      let guilds = [];
+      try {
+        const runningBot = await ensureBotRunning();
+        guilds = runningBot?.getConnectedGuilds() || [];
+      } catch (error) {
+        logger.debug(`Guild names unavailable while loading mappings: ${error.message}`);
+      }
+      const guildMap = new Map(guilds.map((guild) => [guild.id, guild.name]));
+
+      return sendResponse(res, {
+        configs: configs.map((config) => ({
+          ...config,
+          guildName: guildMap.get(config.guildId) || 'Unknown server'
+        }))
+      });
+    }
+
+    if (method === 'POST' && pathname === '/api/config-channel') {
+      if (!isAuthorizedSetupRequest(req, res)) return;
+
+      const body = await readJsonBody(req, res);
+      if (body === null) return;
+
+      const guildId = body.guildId;
+      const channelId = body.channelId;
+
+      if (!guildId || !channelId) {
+        return sendResponse(res, json({ error: 'guildId and channelId are required' }, 400));
+      }
+
+      if (body.remove === true) {
+        await configStore.removeChannelFolder(guildId, channelId);
+        return sendResponse(res, {
+          success: true,
+          action: 'removed'
+        });
+      }
+
+      const enabled = normalizeBoolean(body.enabled, true);
+      if (!enabled) {
+        await configStore.setChannelSyncEnabled(guildId, channelId, false);
+        return sendResponse(res, {
+          success: true,
+          action: 'disabled'
+        });
+      }
+
+      const { folderId, folderName } = body;
+      if (!folderId || !folderName) {
+        return sendResponse(res, json({ error: 'folderId and folderName are required when enabling a mapping' }, 400));
+      }
+
+      await configStore.setChannelFolder(guildId, channelId, folderId, folderName, true);
+      return sendResponse(res, {
+        success: true,
+        action: 'enabled',
+        mapping: {
+          guildId,
+          channelId,
+          folderId,
+          folderName
+        }
+      });
     }
 
     if (method === 'GET' && pathname === '/api/setup-complete') {

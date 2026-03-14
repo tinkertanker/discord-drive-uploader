@@ -6,6 +6,7 @@ A Discord bot that automatically uploads photos and videos from Discord channels
 
 - 📸 Automatic photo and video uploads from Discord to Google Drive
 - 📁 Per-channel folder configuration
+- 🧩 Map channels per server to folders
 - 🎨 Bot avatar updates to last uploaded image
 - 💬 Smart file naming with message content
 - 🚀 Docker-first deployment
@@ -80,6 +81,15 @@ A Discord bot that automatically uploads photos and videos from Discord channels
 3. Visit the app root and complete the setup wizard.
 4. Set the bot token and default folder to persist settings.
    - If `SETUP_API_TOKEN` is set, enter it when prompted before saving config.
+5. Use **Link Servers and Channels** to map each Discord channel to a Drive folder and toggle sync.
+
+### Mac mini on `discord-drive-uploader.tk.sg`
+
+1. Point `discord-drive-uploader.tk.sg` to your Mac mini.
+2. Set `GOOGLE_REDIRECT_URI` to:
+   - `https://discord-drive-uploader.tk.sg/auth/google/callback`
+3. Keep `docker-compose.yml` exposing the service and route `discord-drive-uploader.tk.sg` to port `3000` via your reverse proxy (nginx, Traefik, Caddy, etc.).
+4. Update any OAuth client/domain settings to match the same domain.
 
 #### Docker quick start
 
@@ -91,11 +101,42 @@ docker compose up --build -d
 
 Visit `http://localhost:3000`.
 
+### Deploy to `tinkertanker@dev.tk.sg`
+
+Use the built-in deploy script:
+
+```bash
+# From this repo
+DEPLOY_HOST='tinkertanker@dev.tk.sg' \
+DEPLOY_DIR='/home/tinkertanker/Docker/discord-gdrive-photo-uploader' \
+npm run deploy
+```
+
+What it does:
+
+- Syncs repository files to the remote directory.
+- Uploads `.env` (if present) as `${DEPLOY_DIR}/.env`.
+- Runs `docker compose up --build -d --remove-orphans` on the remote host.
+
+You can optionally skip `.env` upload when you manage secrets manually:
+
+```bash
+SKIP_ENV_UPLOAD=1 npm run deploy
+```
+
+Useful check after deploy:
+
+```bash
+ssh tinkertanker@dev.tk.sg 'cd /home/tinkertanker/Docker/discord-gdrive-photo-uploader && docker compose ps'
+```
+
 ## Bot Commands
 
 - `/setup-folder` - Configure upload folder for current channel
 - `/upload-info` - Show current upload configuration
 - `/test-upload` - Test the upload functionality
+
+The web setup flow also supports mapping multiple Discord channels to folders directly.
 
 ## How It Works
 

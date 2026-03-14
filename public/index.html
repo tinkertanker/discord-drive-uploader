@@ -32,7 +32,7 @@
           <div id="folder-list" class="folder-list">
             <div class="loading">Load your Google account first</div>
           </div>
-          <p class="info">Use <strong>/setup-folder</strong> in Discord if you need per-channel overrides later.</p>
+          <p class="info">This is the fallback folder. You can map specific channels to different folders in the next step.</p>
         </div>
 
         <div class="step" data-step="4">
@@ -46,6 +46,33 @@
         </div>
 
         <div class="step" data-step="5">
+          <h2>⚙️ Link Servers and Channels</h2>
+          <p>Choose which server and channel you want this bot to monitor, then map each channel to a Google Drive folder.</p>
+          <div class="mapping-form">
+            <div class="form-grid">
+              <div>
+                <label for="guild-selector">Server</label>
+                <select id="guild-selector" class="input"></select>
+              </div>
+              <div>
+                <label for="channel-selector">Channel</label>
+                <select id="channel-selector" class="input"></select>
+              </div>
+              <div>
+                <label for="channel-folder-selector">Drive folder</label>
+                <select id="channel-folder-selector" class="input"></select>
+              </div>
+            </div>
+            <button class="btn btn-primary" id="link-channel-btn">Link channel to folder</button>
+            <p class="info">You can add as many channel mappings as you want.</p>
+            <h3 style="margin-top: 1.5rem;">Active channel links</h3>
+            <div id="channel-links-list" class="mapping-list"></div>
+            <button class="btn btn-primary" onclick="nextStep()">Continue</button>
+          </div>
+          <p id="link-feedback" class="info"></p>
+        </div>
+
+        <div class="step" data-step="6">
           <h2>🎉 Setup Complete</h2>
           <p id="setup-status">Finalising setup...</p>
           <h3 style="margin-top: 2rem;">Invite the Bot</h3>
@@ -53,7 +80,7 @@
             <input type="text" id="bot-invite" readonly class="input">
             <button class="btn btn-secondary" onclick="copyInviteLink(event)">Copy</button>
           </div>
-          <p class="info">Add the bot to your server, then use <code>/setup-folder</code> for channel-specific folders.</p>
+          <p class="info">Use the Invite link above, add the bot to your server, then post photos in mapped channels to start syncing.</p>
         </div>
       </div>
 

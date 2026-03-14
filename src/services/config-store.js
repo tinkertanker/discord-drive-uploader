@@ -76,7 +76,7 @@ export class ConfigStore {
     }
   }
 
-  async setChannelFolder(guildId, channelId, folderId, folderName) {
+  async setChannelFolder(guildId, channelId, folderId, folderName, enabled = true) {
     try {
       const guildConfig = await this.getGuildConfig(guildId);
       
@@ -87,7 +87,8 @@ export class ConfigStore {
       guildConfig.channels[channelId] = {
         driveFolderId: folderId,
         folderName: folderName,
-        configuredAt: Date.now()
+        configuredAt: Date.now(),
+        enabled
       };
       
       await this.setGuildConfig(guildId, guildConfig);
@@ -102,7 +103,11 @@ export class ConfigStore {
     try {
       const guildConfig = await this.getGuildConfig(guildId);
       if (guildConfig.channels?.[channelId]) {
-        return guildConfig.channels[channelId];
+        const channelConfig = guildConfig.channels[channelId];
+        if (channelConfig?.enabled === false) {
+          return null;
+        }
+        return channelConfig;
       }
 
       const defaultFolder = await this.getDefaultFolder();
@@ -114,6 +119,75 @@ export class ConfigStore {
     } catch (error) {
       logger.error('Failed to get channel folder:', error);
       return null;
+    }
+  }
+
+  async setChannelSyncEnabled(guildId, channelId, enabled) {
+    try {
+      const guildConfig = await this.getGuildConfig(guildId);
+      if (!guildConfig.channels?.[channelId]) {
+        throw new Error('Channel is not configured');
+      }
+
+      guildConfig.channels[channelId] = {
+        ...guildConfig.channels[channelId],
+        enabled,
+        configuredAt: Date.now()
+      };
+
+      await this.setGuildConfig(guildId, guildConfig);
+      logger.info(`Set sync ${enabled ? 'enabled' : 'disabled'} for channel ${channelId} in guild ${guildId}`);
+    } catch (error) {
+      logger.error('Failed to update channel sync state:', error);
+      throw new Error('Failed to update channel sync state');
+    }
+  }
+
+  async removeChannelFolder(guildId, channelId) {
+    try {
+      const guildConfig = await this.getGuildConfig(guildId);
+      if (!guildConfig.channels?.[channelId]) {
+        return;
+      }
+
+      delete guildConfig.channels[channelId];
+      if (!Object.keys(guildConfig.channels).length) {
+        guildConfig.channels = {};
+      }
+
+      await this.setGuildConfig(guildId, guildConfig);
+      logger.info(`Removed channel ${channelId} configuration from guild ${guildId}`);
+    } catch (error) {
+      logger.error('Failed to remove channel folder config:', error);
+      throw new Error('Failed to remove channel configuration');
+    }
+  }
+
+  async getAllChannelConfigs() {
+    try {
+      const guildIds = await this.getAllGuildIds();
+      const mappings = [];
+
+      for (const guildId of guildIds) {
+        const guildConfig = await this.getGuildConfig(guildId);
+        const channels = guildConfig.channels || {};
+
+        Object.entries(channels).forEach(([channelId, config]) => {
+          mappings.push({
+            guildId,
+            channelId,
+            folderId: config.driveFolderId,
+            folderName: config.folderName,
+            enabled: config.enabled !== false,
+            configuredAt: config.configuredAt || null
+          });
+        });
+      }
+
+      return mappings;
+    } catch (error) {
+      logger.error('Failed to list channel configs:', error);
+      return [];
     }
   }
 

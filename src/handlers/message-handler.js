@@ -189,6 +189,48 @@ export class DiscordBot {
     }
   }
 
+  getConnectedGuilds() {
+    if (!this.client || !this.client.isReady()) {
+      return [];
+    }
+
+    return Array.from(this.client.guilds.cache.values())
+      .map((guild) => ({
+        id: guild.id,
+        name: guild.name,
+        icon: guild.icon,
+        memberCount: guild.memberCount || 0
+      }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }
+
+  async getGuildChannels(guildId) {
+    if (!this.client || !this.client.isReady()) {
+      return [];
+    }
+
+    const guild = this.client.guilds.cache.get(guildId);
+    if (!guild) {
+      return [];
+    }
+
+    let channels = guild.channels.cache;
+    try {
+      channels = await guild.channels.fetch();
+    } catch {
+      channels = guild.channels.cache;
+    }
+
+    return Array.from(channels.values())
+      .filter((channel) => channel.isTextBased())
+      .map((channel) => ({
+        id: channel.id,
+        name: channel.name || 'Unknown channel',
+        type: channel.type
+      }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }
+
   async registerSlashCommands() {
     const commands = [
       {
