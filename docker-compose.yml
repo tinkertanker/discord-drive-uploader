@@ -1,0 +1,12 @@
+services:
+  discord-drive-uploader:
+    build: .
+    image: discord-drive-uploader:local
+    container_name: discord-drive-uploader
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./data:/data
+    env_file:
+      - .env
+    restart: unless-stopped

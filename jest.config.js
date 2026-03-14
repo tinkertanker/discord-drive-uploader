@@ -3,7 +3,6 @@ export default {
   testMatch: ['**/tests/**/*.test.js'],
   collectCoverageFrom: [
     'src/**/*.js',
-    'netlify/functions/**/*.js',
     '!**/node_modules/**'
   ],
   coverageDirectory: 'coverage',

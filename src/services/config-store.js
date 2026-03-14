@@ -1,6 +1,4 @@
-// import { getStore } from '@netlify/blobs';
-// import { getStore } from './simple-store.js';
-import { getStore } from './netlify-env-store.js';
+import { getStore } from './file-store.js';
 import { createLogger } from '../utils/logger.js';
 
 const logger = createLogger('ConfigStore');
@@ -92,9 +90,50 @@ export class ConfigStore {
   async getChannelFolder(guildId, channelId) {
     try {
       const guildConfig = await this.getGuildConfig(guildId);
-      return guildConfig.channels?.[channelId] || null;
+      if (guildConfig.channels?.[channelId]) {
+        return guildConfig.channels[channelId];
+      }
+
+      const defaultFolder = await this.getDefaultFolder();
+      return defaultFolder ? {
+        driveFolderId: defaultFolder.id,
+        folderName: defaultFolder.name,
+        configuredAt: defaultFolder.configuredAt
+      } : null;
     } catch (error) {
       logger.error('Failed to get channel folder:', error);
+      return null;
+    }
+  }
+
+  async setDefaultFolder(folderId, folderName) {
+    try {
+      const defaultFolder = {
+        id: folderId,
+        name: folderName,
+        configuredAt: Date.now()
+      };
+      await this.setJSON('default_folder', defaultFolder);
+      logger.info(`Updated default folder to ${folderName} (${folderId})`);
+    } catch (error) {
+      logger.error('Failed to set default folder:', error);
+      throw new Error('Failed to store default folder');
+    }
+  }
+
+  async getDefaultFolder() {
+    try {
+      const defaultFolder = await this.store.get('default_folder');
+      if (typeof defaultFolder === 'string') {
+        try {
+          return JSON.parse(defaultFolder);
+        } catch {
+          return null;
+        }
+      }
+      return defaultFolder;
+    } catch (error) {
+      logger.error('Failed to get default folder:', error);
       return null;
     }
   }

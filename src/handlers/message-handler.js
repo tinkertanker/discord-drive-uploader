@@ -3,7 +3,6 @@ import { ConfigStore } from '../services/config-store.js';
 import { GoogleAuthService } from '../services/google-auth.js';
 import { GoogleDriveService } from '../services/google-drive.js';
 import { generateFileName, handleDuplicateFilename } from '../utils/file-namer.js';
-import { getUploadQueue } from '../services/upload-queue.js';
 import { createLogger } from '../utils/logger.js';
 import fetch from 'node-fetch';
 
@@ -17,7 +16,6 @@ export class DiscordBot {
   constructor() {
     this.client = null;
     this.configStore = new ConfigStore();
-    this.uploadQueue = getUploadQueue();
   }
 
   async initialize() {
@@ -64,6 +62,7 @@ export class DiscordBot {
 
   async handleMessageWithAttachments(message) {
     const { guild, channel } = message;
+    if (!guild) return;
     
     // Get channel configuration
     const channelConfig = await this.configStore.getChannelFolder(guild.id, channel.id);
@@ -83,14 +82,9 @@ export class DiscordBot {
 
     logger.info(`Processing ${supportedAttachments.length} attachments from channel ${channel.name}`);
 
-    // Add upload tasks to queue
-    const uploadTasks = supportedAttachments.map(attachment => 
+    const uploadTasks = supportedAttachments.map(attachment =>
       this.createUploadTask(attachment, message, channelConfig)
     );
-
-    for (const task of uploadTasks) {
-      await this.uploadQueue.add(task);
-    }
 
     // Send initial response
     const emoji = supportedAttachments.length === 1 ? '📤' : '📤📤';
@@ -145,7 +139,13 @@ export class DiscordBot {
         }
 
         const authService = new GoogleAuthService();
-        authService.setCredentials(googleTokens);
+        if (googleTokens.expired && googleTokens.refresh_token) {
+          const refreshed = await authService.refreshAccessToken(googleTokens.refresh_token);
+          await this.configStore.setGoogleTokens(refreshed);
+          authService.setCredentials(refreshed);
+        } else {
+          authService.setCredentials(googleTokens);
+        }
         const driveService = new GoogleDriveService(authService.getAuthClient());
 
         // Get existing files in folder for duplicate handling

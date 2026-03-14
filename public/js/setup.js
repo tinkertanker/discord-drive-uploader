@@ -3,305 +3,204 @@ let selectedFolderId = null;
 let selectedFolderName = null;
 
 function nextStep() {
-    showStep(currentStep + 1);
+  showStep(currentStep + 1);
 }
 
 function showStep(step) {
-    document.querySelectorAll('.step').forEach(el => {
-        el.classList.remove('active');
-    });
-    
-    const stepElement = document.querySelector(`[data-step="${step}"]`);
-    if (stepElement) {
-        stepElement.classList.add('active');
-        currentStep = step;
-        
-        // Handle step-specific actions
-        if (step === 3) {
-            loadFolders();
-        } else if (step === 5) {
-            generateInviteLink();
-            loadSetupComplete();
-        }
-    }
+  document.querySelectorAll('.step').forEach((el) => {
+    el.classList.remove('active');
+  });
+
+  const stepElement = document.querySelector(`[data-step="${step}"]`);
+  if (!stepElement) return;
+
+  stepElement.classList.add('active');
+  currentStep = step;
+
+  if (step === 3) {
+    loadFolders();
+  } else if (step === 5) {
+    generateInviteLink();
+    loadSetupComplete();
+  }
 }
 
 function showError(message) {
-    const errorEl = document.getElementById('error-message');
-    errorEl.textContent = message;
-    errorEl.classList.add('show');
-    setTimeout(() => {
-        errorEl.classList.remove('show');
-    }, 5000);
+  const errorEl = document.getElementById('error-message');
+  errorEl.textContent = message;
+  errorEl.classList.add('show');
+  setTimeout(() => errorEl.classList.remove('show'), 5000);
 }
 
 async function startGoogleAuth() {
-    try {
-        window.location.href = '/auth/google/start';
-    } catch (error) {
-        showError('Failed to start Google authentication');
-    }
+  try {
+    window.location.href = '/auth/google/start';
+  } catch {
+    showError('Failed to start Google authentication');
+  }
 }
 
 async function loadFolders() {
-    const folderList = document.getElementById('folder-list');
-    
-    // Store auth data from URL if available
-    const params = new URLSearchParams(window.location.search);
-    const authData = params.get('auth');
-    if (authData) {
-        sessionStorage.setItem('auth_data', authData);
-        // Clean URL
-        window.history.replaceState({}, document.title, window.location.pathname);
+  const folderList = document.getElementById('folder-list');
+  folderList.innerHTML = '<div class="loading">Loading folders...</div>';
+
+  try {
+    const response = await fetch('/api/folders');
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({}));
+      throw new Error(error.error || 'Unable to fetch folders');
     }
-    
-    // Get tokens
-    const storedAuth = sessionStorage.getItem('auth_data');
-    if (!storedAuth) {
-        folderList.innerHTML = '<div class="loading">Not authenticated. Please start over.</div>';
-        return;
+
+    const data = await response.json();
+    const folders = data.folders || data;
+    if (!folders || folders.length === 0) {
+      folderList.innerHTML = '<div class="loading">No folders found</div>';
+      return;
     }
-    
-    let tokens;
-    try {
-        tokens = JSON.parse(atob(storedAuth));
-    } catch (e) {
-        console.error('Failed to parse auth data:', e);
-        folderList.innerHTML = '<div class="loading">Invalid authentication data.</div>';
-        return;
-    }
-    
-    folderList.innerHTML = `
-        <div style="text-align: center; padding: 2rem;">
-            <button class="btn btn-primary" onclick="openFolderPicker()">
-                📁 Choose Google Drive Folder
-            </button>
-            <div id="selected-folder" style="margin-top: 1rem;"></div>
-        </div>
-    `;
-    
-    // Initialize Google API
-    window.googleTokens = tokens;
-    gapi.load('picker', () => {
-        console.log('Google Picker API loaded');
+
+    folderList.innerHTML = folders
+      .map((folder) => `
+        <button class="btn btn-secondary folder-item" data-folder-id="${folder.id}" data-folder-name="${folder.name}">
+          ${folder.name}
+        </button>
+      `).join('');
+
+    folderList.querySelectorAll('.folder-item').forEach((button) => {
+      button.addEventListener('click', () => {
+        selectFolder(button.dataset.folderId, button.dataset.folderName, button);
+      });
     });
+  } catch (error) {
+    folderList.innerHTML = '<div class="loading">Unable to load folders. Connect Google Drive first.</div>';
+    console.error(error);
+  }
 }
 
 function selectFolder(folderId, folderName, element) {
-    // Remove previous selection
-    document.querySelectorAll('.folder-item').forEach(el => {
-        el.classList.remove('selected');
-    });
-    
-    // Mark as selected
-    element.classList.add('selected');
-    selectedFolderId = folderId;
-    selectedFolderName = folderName;
-    
-    // Add continue button if not exists
-    if (!document.getElementById('continue-folder')) {
-        const btn = document.createElement('button');
-        btn.id = 'continue-folder';
-        btn.className = 'btn btn-primary';
-        btn.textContent = 'Continue';
-        btn.onclick = () => saveFolderAndContinue();
-        document.querySelector('[data-step="3"]').appendChild(btn);
-    }
-}
+  document.querySelectorAll('.folder-item').forEach((el) => el.classList.remove('selected'));
+  element.classList.add('selected');
+  selectedFolderId = folderId;
+  selectedFolderName = folderName;
 
-async function createNewFolder() {
-    const folderName = prompt('Enter folder name:');
-    if (!folderName) return;
-    
-    try {
-        const response = await fetch('/.netlify/functions/api-folders-create', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ name: folderName })
-        });
-        
-        if (!response.ok) throw new Error('Failed to create folder');
-        
-        const folder = await response.json();
-        showError(`Folder "${folderName}" created successfully!`);
-        loadFolders(); // Reload folder list
-    } catch (error) {
-        showError('Failed to create folder');
-    }
+  if (!document.getElementById('continue-folder')) {
+    const btn = document.createElement('button');
+    btn.id = 'continue-folder';
+    btn.className = 'btn btn-primary';
+    btn.textContent = 'Continue';
+    btn.addEventListener('click', saveFolderAndContinue);
+    document.querySelector('[data-step="3"]').appendChild(btn);
+  }
 }
 
 async function saveFolderAndContinue() {
-    if (!selectedFolderId) {
-        showError('Please select a folder');
-        return;
+  if (!selectedFolderId) {
+    showError('Please select a folder');
+    return;
+  }
+
+  try {
+    const response = await fetch('/api/config-folder', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        folderId: selectedFolderId,
+        folderName: selectedFolderName
+      })
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.error || 'Failed to save folder configuration');
     }
-    
-    try {
-        const authData = sessionStorage.getItem('auth_data');
-        const headers = { 'Content-Type': 'application/json' };
-        if (authData) {
-            headers['Authorization'] = `Bearer ${authData}`;
-        }
-        
-        const response = await fetch('/.netlify/functions/api-config-folder', {
-            method: 'POST',
-            headers,
-            body: JSON.stringify({ 
-                folderId: selectedFolderId,
-                folderName: selectedFolderName 
-            })
-        });
-        
-        if (!response.ok) {
-            const errorData = await response.json();
-            throw new Error(errorData.details || errorData.error || 'Failed to save folder configuration');
-        }
-        
-        const result = await response.json();
-        console.log('Folder save result:', result);
-        
-        nextStep();
-    } catch (error) {
-        console.error('Save folder error:', error);
-        showError('Failed to save folder configuration: ' + error.message);
-    }
+
+    nextStep();
+  } catch (error) {
+    showError(`Failed to save folder: ${error.message}`);
+  }
 }
 
 async function saveDiscordToken() {
-    const token = document.getElementById('discord-token').value.trim();
-    if (!token) {
-        showError('Please enter your Discord bot token');
-        return;
+  const token = document.getElementById('discord-token').value.trim();
+  if (!token) {
+    showError('Please enter your Discord bot token');
+    return;
+  }
+
+  try {
+    const response = await fetch('/api/config-discord', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ token })
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.error || 'Failed to save Discord token');
     }
-    
-    try {
-        const response = await fetch('/.netlify/functions/api-config-discord', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ token })
-        });
-        
-        if (!response.ok) throw new Error('Failed to save Discord token');
-        
-        nextStep();
-    } catch (error) {
-        showError('Failed to save Discord configuration');
-    }
+
+    nextStep();
+  } catch (error) {
+    showError(error.message);
+  }
 }
 
 function generateInviteLink() {
-    const appId = getMeta('discord-app-id');
-    if (!appId) {
-        showError('Discord Application ID not configured');
-        return;
-    }
-    
-    // Bot permissions: Read Messages, Send Messages, Manage Messages, Attach Files, Read Message History
-    const permissions = '3072';
-    const inviteUrl = `https://discord.com/api/oauth2/authorize?client_id=${appId}&permissions=${permissions}&scope=bot%20applications.commands`;
-    
-    const inviteInput = document.getElementById('bot-invite');
-    inviteInput.value = inviteUrl;
+  const appId = getMeta('discord-app-id');
+  if (!appId) return;
+
+  const permissions = '3072';
+  const inviteUrl = `https://discord.com/api/oauth2/authorize?client_id=${appId}&permissions=${permissions}&scope=bot%20applications.commands`;
+  document.getElementById('bot-invite').value = inviteUrl;
 }
 
-function copyInviteLink() {
-    const inviteInput = document.getElementById('bot-invite');
-    inviteInput.select();
-    document.execCommand('copy');
-    
-    // Show feedback
-    const btn = event.target;
-    const originalText = btn.textContent;
-    btn.textContent = 'Copied!';
-    setTimeout(() => {
-        btn.textContent = originalText;
-    }, 2000);
+function copyInviteLink(event) {
+  const inviteInput = document.getElementById('bot-invite');
+  inviteInput.select();
+  document.execCommand('copy');
+
+  const btn = event.target;
+  const previous = btn.textContent;
+  btn.textContent = 'Copied';
+  setTimeout(() => {
+    btn.textContent = previous;
+  }, 2000);
 }
 
 function getMeta(name) {
-    const element = document.querySelector(`meta[name="${name}"]`);
-    return element ? element.content : null;
+  const element = document.querySelector(`meta[name="${name}"]`);
+  return element ? element.content : null;
 }
 
 async function loadSetupComplete() {
-    try {
-        const response = await fetch('/.netlify/functions/api-setup-complete');
-        const data = await response.json();
-        
-        if (data.envVars && data.envVars.length > 0) {
-            const envVarsEl = document.getElementById('env-vars');
-            envVarsEl.innerHTML = `
-                <div style="background: var(--background); padding: 1rem; border-radius: 6px; margin: 1rem 0;">
-                    <ol style="margin-left: 1.5rem;">
-                        ${data.envVars.map(env => `
-                            <li style="margin: 0.5rem 0;">
-                                <strong>${env.key}</strong> (${env.description})
-                                <pre style="background: #000; padding: 0.5rem; margin: 0.5rem 0; overflow-x: auto; font-size: 0.8rem;">${env.value}</pre>
-                            </li>
-                        `).join('')}
-                    </ol>
-                    <p style="margin-top: 1rem;">Go to Netlify → Site configuration → Environment variables to add these.</p>
-                </div>
-            `;
-        }
-    } catch (error) {
-        console.error('Failed to load setup complete data:', error);
-    }
-}
-
-function openFolderPicker() {
-    if (!window.googleTokens) {
-        showError('Not authenticated with Google');
-        return;
+  try {
+    const response = await fetch('/api/setup-complete');
+    if (!response.ok) {
+      return;
     }
 
-    const picker = new google.picker.PickerBuilder()
-        .setOAuthToken(window.googleTokens.access_token)
-        .addView(new google.picker.DocsView()
-            .setIncludeFolders(true)
-            .setSelectFolderEnabled(true)
-            .setMimeTypes('application/vnd.google-apps.folder'))
-        .addView(new google.picker.DocsView()
-            .setIncludeFolders(true)
-            .setSelectFolderEnabled(true)
-            .setEnableDrives(true)
-            .setMimeTypes('application/vnd.google-apps.folder'))
-        .setCallback(pickerCallback)
-        .setTitle('Select a folder for Discord uploads')
-        .enableFeature(google.picker.Feature.SUPPORT_DRIVES)
-        .build();
-    
-    picker.setVisible(true);
+    const data = await response.json();
+    document.getElementById('setup-status').textContent = data.message;
+  } catch (error) {
+    console.error('Failed to load setup status:', error);
+  }
 }
 
-function pickerCallback(data) {
-    if (data.action === google.picker.Action.PICKED) {
-        const folder = data.docs[0];
-        selectedFolderId = folder.id;
-        selectedFolderName = folder.name;
-        
-        // Show selected folder
-        document.getElementById('selected-folder').innerHTML = `
-            <div style="padding: 1rem; background: var(--background); border-radius: 6px;">
-                <p>Selected folder: <strong>${folder.name}</strong></p>
-                <button class="btn btn-primary" onclick="saveFolderAndContinue()">Continue</button>
-            </div>
-        `;
-    }
-}
-
-// Check URL parameters for OAuth callback
 window.addEventListener('DOMContentLoaded', () => {
-    const params = new URLSearchParams(window.location.search);
-    const hash = window.location.hash;
-    
-    if (params.get('step') === '3' || params.get('step') === 'folder-selection' || hash === '#step-3') {
-        showStep(3);
-    } else if (params.get('oauth') === 'success') {
-        // OAuth was successful, show folder selection
-        showStep(3);
-    } else if (params.get('auth')) {
-        // We have auth data, show folder selection
-        showStep(3);
-    }
+  const params = new URLSearchParams(window.location.search);
+  if (params.get('step') === '3' || params.get('oauth') === 'success') {
+    showStep(3);
+  }
+
+  const error = params.get('error');
+  if (error === 'unauthorized_email') {
+    const email = params.get('email') || 'this Google account';
+    const allowed = params.get('allowed');
+    const allowedText = allowed ? `@${allowed.split(',')[0]}` : 'an approved domain';
+    const used = email.includes('@') ? email.split('@')[1] : email;
+    showError(`This bot is restricted to ${allowedText}. You signed in with ${used}. Please use an approved Google account.`);
+  }
 });
