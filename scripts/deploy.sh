@@ -6,7 +6,7 @@ DEPLOY_DIR="${DEPLOY_DIR:-/home/tinkertanker-server/Docker/discord-gdrive-photo-
 DEPLOY_BRANCH="${DEPLOY_BRANCH:-main}"
 DEPLOY_REPO="${DEPLOY_REPO:-$(git config --get remote.origin.url || true)}"
 COMPOSE_FILE="${COMPOSE_FILE:-docker-compose.yml}"
-UPLOAD_ENV="${UPLOAD_ENV:-0}"
+UPLOAD_ENV="${UPLOAD_ENV:-1}"
 PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 if ! command -v ssh >/dev/null 2>&1; then
@@ -16,6 +16,11 @@ fi
 
 if ! command -v git >/dev/null 2>&1; then
   echo "git is required for this script."
+  exit 1
+fi
+
+if ! command -v rsync >/dev/null 2>&1; then
+  echo "rsync is required for this script."
   exit 1
 fi
 
@@ -49,15 +54,15 @@ if [[ "$UPLOAD_ENV" == "1" ]]; then
     echo "Uploading local .env..."
     rsync --archive "$PROJECT_ROOT/.env" "$DEPLOY_HOST:${DEPLOY_DIR}/.env"
   else
-    echo "No local .env found at $PROJECT_ROOT/.env; skipping environment upload."
+    echo "ERROR: local .env file not found at $PROJECT_ROOT/.env"
+    exit 1
   fi
+else
+  ssh "$DEPLOY_HOST" "if [ ! -f '${DEPLOY_DIR}/.env' ]; then
+    echo 'ERROR: compose requires .env on remote and UPLOAD_ENV=0 was set for this run.'
+    exit 1
+  fi"
 fi
-
-ssh "$DEPLOY_HOST" "if [ ! -f '${DEPLOY_DIR}/.env' ]; then
-  echo 'ERROR: compose requires .env on remote and no UPLOAD_ENV=1 was used this run.'
-  echo 'Create ${DEPLOY_DIR}/.env on the server or rerun with UPLOAD_ENV=1.'
-  exit 1
-fi"
 
 echo "Deploying with docker compose (${COMPOSE_FILE})..."
 ssh "$DEPLOY_HOST" "cd '${DEPLOY_DIR}' && docker compose -f '${COMPOSE_FILE}' up --build -d --remove-orphans"

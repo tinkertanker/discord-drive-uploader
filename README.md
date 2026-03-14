@@ -118,6 +118,7 @@ What it does:
 
 - Ensures the remote directory exists.
 - Runs `git fetch`, checks out/pulls `DEPLOY_BRANCH` (default `main`) on the remote.
+- Uploads local `.env` to the remote host before starting the container (set `UPLOAD_ENV=0` to skip).
 - Runs `docker compose up --build -d --remove-orphans` on the remote host.
 
 The deploy script expects the remote folder to already contain the codebase.
