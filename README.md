@@ -108,26 +108,30 @@ Use the built-in deploy script:
 ```bash
 # From this repo
 DEPLOY_HOST='tinkertanker@dev.tk.sg' \
-DEPLOY_DIR='/home/tinkertanker/Docker/discord-gdrive-photo-uploader' \
+DEPLOY_DIR='/home/tinkertanker-server/Docker/discord-gdrive-photo-uploader' \
 npm run deploy
 ```
 
 What it does:
 
-- Syncs repository files to the remote directory.
-- Uploads `.env` (if present) as `${DEPLOY_DIR}/.env`.
+- Ensures the remote directory exists.
+- Runs `git fetch`, checks out/pulls `DEPLOY_BRANCH` (default `main`) on the remote.
 - Runs `docker compose up --build -d --remove-orphans` on the remote host.
 
-You can optionally skip `.env` upload when you manage secrets manually:
+The deploy script expects the remote folder to already contain the codebase.
+On first deploy, if it's not a git repo, set `DEPLOY_REPO` to let it bootstrap by cloning.
 
 ```bash
-SKIP_ENV_UPLOAD=1 npm run deploy
+DEPLOY_REPO='git@github.com:your-org/discord-gdrive-photo-uploader.git' \
+DEPLOY_BRANCH='main' \
+DEPLOY_DIR='/home/tinkertanker-server/Docker/discord-gdrive-photo-uploader' \
+npm run deploy
 ```
 
 Useful check after deploy:
 
 ```bash
-ssh tinkertanker@dev.tk.sg 'cd /home/tinkertanker/Docker/discord-gdrive-photo-uploader && docker compose ps'
+ssh tinkertanker@dev.tk.sg 'cd /home/tinkertanker-server/Docker/discord-gdrive-photo-uploader && docker compose ps'
 ```
 
 ## Bot Commands
