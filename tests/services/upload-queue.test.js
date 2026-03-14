@@ -14,6 +14,7 @@ describe('UploadQueue', () => {
 
   describe('add', () => {
     test('adds task to queue and returns ID', async () => {
+      queue.processing = true;
       const task = jest.fn().mockResolvedValue('result');
       const id = await queue.add(task);
       
@@ -138,6 +139,7 @@ describe('UploadQueue', () => {
   describe('getQueueStatus', () => {
     test('returns correct queue status', async () => {
       // Add various tasks
+      queue.processing = true;
       await queue.add(jest.fn().mockResolvedValue('result'));
       
       queue.queue.push({

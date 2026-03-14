@@ -1,6 +1,5 @@
 import { jest } from '@jest/globals';
 
-// Mock @netlify/blobs
 const mockStore = {
   get: jest.fn(),
   set: jest.fn(),
@@ -8,7 +7,7 @@ const mockStore = {
   list: jest.fn()
 };
 
-jest.unstable_mockModule('@netlify/blobs', () => ({
+jest.unstable_mockModule('../../src/services/file-store.js', () => ({
   getStore: jest.fn(() => mockStore)
 }));
 

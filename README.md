@@ -1,34 +1,18 @@
 # Discord Drive Uploader
 
-A Discord bot that automatically uploads photos and videos from Discord channels to Google Drive folders. Deploy with one click to Netlify!
+A Discord bot that automatically uploads photos and videos from Discord channels to Google Drive folders.
 
 ## Features
 
 - 📸 Automatic photo and video uploads from Discord to Google Drive
 - 📁 Per-channel folder configuration
+- 🧩 Map channels per server to folders
 - 🎨 Bot avatar updates to last uploaded image
 - 💬 Smart file naming with message content
-- 🚀 One-click Netlify deployment
+- 🚀 Docker-first deployment
 - 🔐 Secure OAuth2 authentication
 
-## Quick Deploy
-
-[![Deploy to Netlify](https://www.netlify.com/img/deploy/button.svg)](https://app.netlify.com/start/deploy?repository=https://github.com/tinkertanker/discord-drive-uploader#GOOGLE_CLIENT_ID=&GOOGLE_CLIENT_SECRET=&DISCORD_APPLICATION_ID=&DISCORD_PUBLIC_KEY=)
-
 ## Setup Instructions
-
-### Option A: Quick Deploy (Recommended)
-
-Use this if you want to deploy quickly and update the Google redirect URI afterward.
-
-### Option B: Pre-configured Deploy
-
-If you want to set up the correct redirect URI from the start:
-1. Fork this repository first
-2. Deploy from your fork to Netlify (without clicking the deploy button)
-3. Note your Netlify URL
-4. Set up Google OAuth with the correct redirect URI
-5. Then configure environment variables in Netlify
 
 ### Prerequisites
 
@@ -44,12 +28,13 @@ If you want to set up the correct redirect URI from the start:
    - Go to "APIs & Services" → "Credentials"
    - Click "Create Credentials" → "OAuth client ID"
    - Choose "Web application"
-   - For now, add a temporary redirect URI: `https://localhost:8888/auth/google/callback`
-   - You'll update this after deployment
+   - Add redirect URI: `http://localhost:3000/auth/google/callback` for local testing, and
+     your production URL for deployment, e.g. `https://your-domain.com/auth/google/callback`
    - Save the credentials
 5. **Copy these values:**
    - `GOOGLE_CLIENT_ID`: The Client ID from your OAuth2 credentials
    - `GOOGLE_CLIENT_SECRET`: The Client Secret from your OAuth2 credentials
+   - `ALLOWED_EMAIL_DOMAINS` (optional): e.g. `tinkertanker.com` to restrict setup Google account domains
 
 #### 2. Discord Application Setup
 
@@ -65,6 +50,8 @@ If you want to set up the correct redirect URI from the start:
    - `DISCORD_BOT_TOKEN`: The bot token (keep this secret!)
 8. Under "Privileged Gateway Intents", enable:
    - Message Content Intent (required to read message content)
+9. Optional for public deployments:
+   - `SETUP_API_TOKEN`: Shared setup secret for protecting setup endpoints
 
 ### Environment Variables Summary
 
@@ -72,41 +59,84 @@ If you want to set up the correct redirect URI from the start:
 |----------|--------------|-------------|
 | `GOOGLE_CLIENT_ID` | Google Cloud Console → APIs & Services → Credentials → OAuth 2.0 Client IDs | Your Google OAuth client ID |
 | `GOOGLE_CLIENT_SECRET` | Google Cloud Console → APIs & Services → Credentials → OAuth 2.0 Client IDs | Your Google OAuth client secret |
-| `GOOGLE_REDIRECT_URI` | Your Netlify URL + `/auth/google/callback` | Must match Google's authorized redirect URIs |
+| `GOOGLE_REDIRECT_URI` | Your public domain + `/auth/google/callback` | Must match Google's authorized redirect URIs |
+| `ALLOWED_EMAIL_DOMAINS` | Local app config | Comma-separated list of allowed Google account domains, defaults to `tinkertanker.com` |
+| `SETUP_API_TOKEN` | Admin-created secret | Optional for local deployments; recommended for public deployments to protect setup endpoints |
 | `DISCORD_APPLICATION_ID` | Discord Developer Portal → Your App → General Information | Discord application/client ID |
 | `DISCORD_PUBLIC_KEY` | Discord Developer Portal → Your App → General Information | Discord public key for verification |
 | `DISCORD_BOT_TOKEN` | Discord Developer Portal → Your App → Bot → Token | Secret bot token (don't share!) |
 
 ### Deployment Steps
 
-1. Click "Deploy to Netlify" button above
-2. Fill in the environment variables:
-   - Use temporary values for `GOOGLE_REDIRECT_URI` during initial deployment
-   - Example: `https://temp.netlify.app/auth/google/callback`
-3. Complete the deployment
-4. **After deployment, get your actual Netlify URL** (e.g., `https://amazing-site-123.netlify.app`)
-5. **Update environment variables in Netlify**:
-   - Go to Site configuration → Environment variables
-   - Update `GOOGLE_REDIRECT_URI` to: `https://your-actual-site.netlify.app/auth/google/callback`
-   - Redeploy for changes to take effect
-6. **Update Google OAuth redirect URI**:
-   - Go back to [Google Cloud Console](https://console.cloud.google.com/) → APIs & Services → Credentials
-   - Click on your OAuth 2.0 Client ID to edit it
-   - Remove the temporary `localhost:8888` redirect URI
-   - Add your actual Netlify URL: `https://your-actual-site.netlify.app/auth/google/callback`
-   - Save the changes
-7. Visit your deployed site and follow the setup wizard
-8. Authorize Google Drive access
-9. Select default upload folder
-10. Add bot to your Discord server using the generated invite link
+1. Build and run with Docker (or use docker-compose if you have one).
+2. Set these environment variables in the container:
+   - `GOOGLE_CLIENT_ID`
+   - `GOOGLE_CLIENT_SECRET`
+   - `GOOGLE_REDIRECT_URI` (for production domain)
+   - `ALLOWED_EMAIL_DOMAINS` (optional, for example `tinkertanker.com`)
+   - `SETUP_API_TOKEN` (recommended for public deployments)
+   - `DISCORD_APPLICATION_ID`
+   - `DISCORD_PUBLIC_KEY`
+   - `CONFIG_STORE_PATH` (optional, default `/data/bot-config.json`)
+3. Visit the app root and complete the setup wizard.
+4. Set the bot token and default folder to persist settings.
+   - If `SETUP_API_TOKEN` is set, enter it when prompted before saving config.
+5. Use **Link Servers and Channels** to map each Discord channel to a Drive folder and toggle sync.
 
-> **Note**: The Google OAuth flow won't work until both the Netlify environment variable and Google's authorized redirect URI are updated with your actual Netlify URL!
+### Mac mini on `discord-drive-uploader.tk.sg`
+
+1. Point `discord-drive-uploader.tk.sg` to your Mac mini.
+2. Set `GOOGLE_REDIRECT_URI` to:
+   - `https://discord-drive-uploader.tk.sg/auth/google/callback`
+3. Keep `docker-compose.yml` exposing the service and route `discord-drive-uploader.tk.sg` to port `3000` via your reverse proxy (nginx, Traefik, Caddy, etc.).
+4. Update any OAuth client/domain settings to match the same domain.
+
+#### Docker quick start
+
+```bash
+cp .env.example .env
+# fill in the values in .env
+docker compose up --build -d
+```
+
+Visit `http://localhost:3000`.
+
+### Deploy to `tinkertanker@dev.tk.sg`
+
+Use the built-in deploy script:
+
+```bash
+# From this repo
+DEPLOY_HOST='tinkertanker@dev.tk.sg' \
+DEPLOY_DIR='/home/tinkertanker/Docker/discord-gdrive-photo-uploader' \
+npm run deploy
+```
+
+What it does:
+
+- Syncs repository files to the remote directory.
+- Uploads `.env` (if present) as `${DEPLOY_DIR}/.env`.
+- Runs `docker compose up --build -d --remove-orphans` on the remote host.
+
+You can optionally skip `.env` upload when you manage secrets manually:
+
+```bash
+SKIP_ENV_UPLOAD=1 npm run deploy
+```
+
+Useful check after deploy:
+
+```bash
+ssh tinkertanker@dev.tk.sg 'cd /home/tinkertanker/Docker/discord-gdrive-photo-uploader && docker compose ps'
+```
 
 ## Bot Commands
 
 - `/setup-folder` - Configure upload folder for current channel
 - `/upload-info` - Show current upload configuration
 - `/test-upload` - Test the upload functionality
+
+The web setup flow also supports mapping multiple Discord channels to folders directly.
 
 ## How It Works
 
@@ -134,7 +164,7 @@ npm install
 # Create .env file
 cp .env.example .env
 
-# Run locally with Netlify Dev
+# Run locally
 npm run dev
 
 # Run tests
@@ -143,10 +173,10 @@ npm test
 
 ## Architecture
 
-- **Netlify Functions**: Serverless backend
+- **Node HTTP server**: Serves setup UI and handles OAuth and Discord setup endpoints
 - **Discord.js**: Discord bot interactions
 - **Google APIs**: Drive integration
-- **Netlify Blobs**: Configuration storage
+- **File-backed storage**: JSON config persisted to `CONFIG_STORE_PATH`
 
 ## Contributing
 
@@ -165,15 +195,14 @@ MIT License - see LICENSE file for details
 ### Common Issues
 
 1. **"Invalid redirect URI" error during Google OAuth**
-   - Make sure your redirect URI in Google Cloud Console exactly matches your Netlify URL
-   - Format should be: `https://your-site-name.netlify.app/auth/google/callback`
-   - Common mistake: Using the temporary localhost URL instead of your actual Netlify URL
-   - The redirect URI must be updated after deployment!
+   - Make sure your redirect URI in Google Cloud Console exactly matches your public domain
+   - Format should be: `https://your-site-name.tld/auth/google/callback`
+   - Common mistake: using a stale localhost callback URL
 
 2. **Bot doesn't respond to commands**
    - Ensure the bot has proper permissions in your Discord server
    - Check that Message Content Intent is enabled in Discord Developer Portal
-   - Verify the bot token is correct in Netlify environment variables
+   - Verify the bot token is correct in environment variables
 
 3. **"Not authenticated with Google" error**
    - Complete the Google OAuth flow in the setup wizard
@@ -187,11 +216,16 @@ MIT License - see LICENSE file for details
 ### Required Discord Bot Permissions
 
 When inviting the bot, ensure it has these permissions:
-- Read Messages
+- View Channels
 - Send Messages
 - Read Message History
 - Attach Files
 - Use Slash Commands
+
+### Docker Notes
+
+- The bot process starts on container start and tries to connect to Discord automatically once token is configured.
+- Interactions endpoint is available at `POST /discord/interactions` if you expose it through your public reverse proxy.
 
 ## Support
 

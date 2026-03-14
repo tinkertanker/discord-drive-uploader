@@ -150,6 +150,43 @@ main {
     margin: 1rem 0;
 }
 
+.form-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1rem;
+}
+
+.mapping-list {
+    max-height: 260px;
+    overflow-y: auto;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 0.75rem;
+    margin-top: 0.5rem;
+}
+
+.mapping-item {
+    display: flex;
+    justify-content: space-between;
+    gap: 0.5rem;
+    align-items: center;
+    padding: 0.75rem 0;
+    border-bottom: 1px solid var(--border);
+}
+
+.mapping-item:last-child {
+    border-bottom: none;
+}
+
+.mapping-item .btn {
+    margin-top: 0;
+}
+
+.mapping-item .actions {
+    display: inline-flex;
+    gap: 0.5rem;
+}
+
 .input:focus {
     outline: none;
     border-color: var(--primary-color);
@@ -265,5 +302,19 @@ footer {
     
     .wizard {
         padding: 1.5rem;
+    }
+
+    .form-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .mapping-item {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .mapping-item .actions {
+        width: 100%;
+        justify-content: flex-start;
     }
 }

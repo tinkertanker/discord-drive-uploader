@@ -44,7 +44,8 @@ describe('GoogleAuthService', () => {
         access_type: 'offline',
         scope: [
           'https://www.googleapis.com/auth/drive.file',
-          'https://www.googleapis.com/auth/drive.metadata.readonly'
+          'https://www.googleapis.com/auth/drive.metadata.readonly',
+          'https://www.googleapis.com/auth/userinfo.email'
         ],
         state: state,
         prompt: 'consent'

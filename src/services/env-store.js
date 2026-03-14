@@ -64,7 +64,7 @@ class EnvStore {
 // Singleton instance
 let storeInstance = null;
 
-export function getStore(name) {
+export function getStore(_name) {
   if (!storeInstance) {
     storeInstance = new EnvStore();
   }

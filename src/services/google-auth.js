@@ -15,7 +15,8 @@ export class GoogleAuthService {
   generateAuthUrl(state) {
     const scopes = [
       'https://www.googleapis.com/auth/drive.file',
-      'https://www.googleapis.com/auth/drive.metadata.readonly'
+      'https://www.googleapis.com/auth/drive.metadata.readonly',
+      'https://www.googleapis.com/auth/userinfo.email'
     ];
 
     return this.oauth2Client.generateAuthUrl({
@@ -55,5 +56,19 @@ export class GoogleAuthService {
 
   getAuthClient() {
     return this.oauth2Client;
+  }
+
+  async getAccountEmail() {
+    try {
+      const oauth2 = google.oauth2({
+        version: 'v2',
+        auth: this.oauth2Client
+      });
+      const { data } = await oauth2.userinfo.get();
+      return data.email || null;
+    } catch (error) {
+      logger.error('Failed to fetch Google account email:', error);
+      return null;
+    }
   }
 }

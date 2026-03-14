@@ -1,0 +1,15 @@
+services:
+  discord-drive-uploader:
+    build: .
+    image: discord-drive-uploader:local
+    container_name: discord-drive-uploader
+    environment:
+      VIRTUAL_HOST: discord-drive-uploader.tk.sg
+      VIRTUAL_PORT: 3000
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./data:/data
+    env_file:
+      - .env
+    restart: unless-stopped
