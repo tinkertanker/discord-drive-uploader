@@ -4,6 +4,8 @@ let currentStep = 2;
 let selectedFolderId = null;
 let selectedFolderName = null;
 let folders = [];
+let googlePickerConfig = null;
+let pickerApiReadyPromise = null;
 const channelConfigs = new Map();
 let guilds = [];
 
@@ -77,7 +79,7 @@ function showStep(step) {
   currentStep = step;
 
   if (step === 3) {
-    loadFolders();
+    loadDefaultFolderStep();
   } else if (step === 5) {
     loadMappingStep();
   } else if (step === 6) {
@@ -88,6 +90,7 @@ function showStep(step) {
 
 function resetToGoogleDriveStep(message) {
   folders = [];
+  googlePickerConfig = null;
   selectedFolderId = null;
   selectedFolderName = null;
 
@@ -102,6 +105,15 @@ function resetToGoogleDriveStep(message) {
   if (message) {
     showError(message);
   }
+}
+
+function escapeHtml(value) {
+  return String(value)
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#39;');
 }
 
 function setLinkFeedback(message, isError = false) {
@@ -163,6 +175,167 @@ async function startGoogleAuth() {
   }
 }
 
+async function loadGooglePickerConfig(forceRefresh = false) {
+  if (googlePickerConfig && !forceRefresh) {
+    return googlePickerConfig;
+  }
+
+  const response = await apiGet('/api/google-picker-config');
+  throwIfUnauthorized(response);
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({}));
+    throw new Error(error.error || 'Unable to prepare Google Drive picker');
+  }
+
+  googlePickerConfig = await response.json();
+  return googlePickerConfig;
+}
+
+async function ensureGooglePickerLoaded() {
+  if (window.google?.picker) {
+    return;
+  }
+
+  if (!window.gapi) {
+    throw new Error('Google Picker library failed to load');
+  }
+
+  if (!pickerApiReadyPromise) {
+    pickerApiReadyPromise = new Promise((resolve, reject) => {
+      window.gapi.load('picker', {
+        callback: resolve,
+        onerror: () => reject(new Error('Failed to load Google Picker'))
+      });
+    });
+  }
+
+  await pickerApiReadyPromise;
+}
+
+function updateDefaultFolderSummary() {
+  const selectedFolder = document.getElementById('selected-folder');
+  const continueButton = document.getElementById('continue-folder');
+  if (!selectedFolder) return;
+
+  if (!selectedFolderId || !selectedFolderName) {
+    selectedFolder.innerHTML = '<p class="info">No fallback folder selected yet.</p>';
+    if (continueButton) {
+      continueButton.disabled = true;
+    }
+    return;
+  }
+
+  selectedFolder.innerHTML = `
+    <div class="picker-selection">
+      <strong>Selected folder</strong>
+      <span>${escapeHtml(selectedFolderName)}</span>
+    </div>
+  `;
+
+  if (continueButton) {
+    continueButton.disabled = false;
+  }
+}
+
+function renderDefaultFolderPicker() {
+  const folderList = document.getElementById('folder-list');
+  if (!folderList) return;
+
+  folderList.innerHTML = `
+    <div class="picker-launcher">
+      <button class="btn btn-primary" id="open-default-folder-picker" data-default-text="Choose folder in Google Drive">
+        Choose folder in Google Drive
+      </button>
+      <div id="selected-folder"></div>
+    </div>
+  `;
+
+  document.getElementById('open-default-folder-picker')?.addEventListener('click', openDefaultFolderPicker);
+  updateDefaultFolderSummary();
+}
+
+async function loadDefaultFolderStep() {
+  const folderList = document.getElementById('folder-list');
+  if (!folderList) return;
+
+  folderList.innerHTML = '<div class="loading">Preparing Google Drive picker...</div>';
+
+  try {
+    const config = await loadGooglePickerConfig();
+    if (!config.accessToken) {
+      throw new Error('Google Drive session is missing or expired');
+    }
+
+    renderDefaultFolderPicker();
+  } catch (error) {
+    console.error(error);
+    resetToGoogleDriveStep(error.message || 'Connect Google Drive first before choosing a folder.');
+  }
+}
+
+async function openDriveFolderPicker(title, onPicked) {
+  const config = await loadGooglePickerConfig(true);
+  if (!config.accessToken) {
+    throw new Error('Google Drive session is missing or expired');
+  }
+
+  await ensureGooglePickerLoaded();
+
+  const pickerView = new window.google.picker.DocsView()
+    .setIncludeFolders(true)
+    .setSelectFolderEnabled(true)
+    .setMimeTypes('application/vnd.google-apps.folder');
+
+  let pickerBuilder = new window.google.picker.PickerBuilder()
+    .setOAuthToken(config.accessToken)
+    .setOrigin(window.location.origin)
+    .addView(pickerView)
+    .setTitle(title)
+    .setCallback((data) => {
+      if (data.action !== window.google.picker.Action.PICKED || !data.docs?.length) {
+        return;
+      }
+
+      const folder = data.docs[0];
+      onPicked({
+        id: folder.id,
+        name: folder.name
+      });
+    });
+
+  if (config.apiKey) {
+    pickerBuilder = pickerBuilder.setDeveloperKey(config.apiKey);
+  }
+
+  if (config.appId) {
+    pickerBuilder = pickerBuilder.setAppId(config.appId);
+  }
+
+  if (window.google.picker.Feature?.SUPPORT_DRIVES) {
+    pickerBuilder = pickerBuilder.enableFeature(window.google.picker.Feature.SUPPORT_DRIVES);
+  }
+
+  const picker = pickerBuilder.build();
+  picker.setVisible(true);
+}
+
+async function openDefaultFolderPicker(event) {
+  const button = event.currentTarget;
+  setButtonLoading(button, true);
+
+  try {
+    await openDriveFolderPicker('Select a default Google Drive folder', (folder) => {
+      selectedFolderId = folder.id;
+      selectedFolderName = folder.name;
+      updateDefaultFolderSummary();
+    });
+  } catch (error) {
+    showError(error.message);
+  } finally {
+    setButtonLoading(button, false);
+  }
+}
+
 async function loadFolders() {
   const folderList = document.getElementById('folder-list');
   folderList.innerHTML = '<div class="loading">Loading folders...</div>';
@@ -210,6 +383,10 @@ function selectFolder(folderId, folderName, element) {
   element.classList.add('selected');
   selectedFolderId = folderId;
   selectedFolderName = folderName;
+  const continueButton = document.getElementById('continue-folder');
+  if (continueButton) {
+    continueButton.disabled = false;
+  }
 }
 
 async function saveFolderAndContinue() {
@@ -248,6 +425,7 @@ function addContinueButtonToFolderStep() {
   button.className = 'btn btn-primary';
   button.dataset.defaultText = 'Continue';
   button.textContent = 'Continue';
+  button.disabled = !selectedFolderId;
   button.addEventListener('click', saveFolderAndContinue);
   stepThree.appendChild(button);
 }

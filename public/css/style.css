@@ -198,6 +198,7 @@ main {
     margin: 1rem 0;
     border: 1px solid var(--border);
     border-radius: 6px;
+    padding: 1rem;
 }
 
 .folder-item {
@@ -220,6 +221,24 @@ main {
 
 .folder-item:last-child {
     border-bottom: none;
+}
+
+.picker-launcher {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 1rem;
+}
+
+.picker-selection {
+    width: 100%;
+    background: var(--background);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
 }
 
 .loading {

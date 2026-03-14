@@ -275,6 +275,26 @@ async function handleGoogleFolders(tokens) {
   return driveService.listFolders();
 }
 
+async function getGoogleTokensForClient() {
+  const tokens = await configStore.getGoogleTokens();
+  if (!tokens) {
+    return null;
+  }
+
+  if (!tokens.expired && tokens.access_token) {
+    return tokens;
+  }
+
+  if (!tokens.refresh_token) {
+    throw new Error('Missing Google refresh token');
+  }
+
+  const authService = new GoogleAuthService();
+  const refreshed = await authService.refreshAccessToken(tokens.refresh_token);
+  await configStore.setGoogleTokens(refreshed);
+  return refreshed;
+}
+
 const server = createServer(async (req, res) => {
   const method = req.method || 'GET';
   const requestUrl = new URL(req.url || '/', `http://localhost:${PORT}`);
@@ -351,13 +371,33 @@ const server = createServer(async (req, res) => {
     if (method === 'GET' && pathname === '/api/folders') {
       if (!isAuthorizedSetupRequest(req, res)) return;
 
-      const tokens = await configStore.getGoogleTokens();
+      const tokens = await getGoogleTokensForClient();
       if (!tokens) {
         return sendResponse(res, json({ error: 'Not authenticated with Google' }, 401));
       }
 
       const folders = await handleGoogleFolders(tokens);
       return sendResponse(res, json({ folders }));
+    }
+
+    if (method === 'GET' && pathname === '/api/google-picker-config') {
+      if (!isAuthorizedSetupRequest(req, res)) return;
+
+      const tokens = await getGoogleTokensForClient();
+      if (!tokens) {
+        return sendResponse(res, json({ error: 'Not authenticated with Google' }, 401));
+      }
+
+      const appId = (process.env.GOOGLE_APP_ID || process.env.GOOGLE_PROJECT_NUMBER || '').trim()
+        || (process.env.GOOGLE_CLIENT_ID || '').split('-')[0]
+        || '';
+
+      return sendResponse(res, json({
+        accessToken: tokens.access_token,
+        apiKey: (process.env.GOOGLE_API_KEY || '').trim(),
+        appId,
+        pickerConfigured: Boolean(tokens.access_token && appId && process.env.GOOGLE_API_KEY)
+      }));
     }
 
     if (method === 'POST' && pathname === '/api/config-folder') {

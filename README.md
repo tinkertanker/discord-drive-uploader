@@ -31,9 +31,14 @@ A Discord bot that automatically uploads photos and videos from Discord channels
    - Add redirect URI: `http://localhost:3000/auth/google/callback` for local testing, and
      your production URL for deployment, e.g. `https://your-domain.com/auth/google/callback`
    - Save the credentials
-5. **Copy these values:**
+5. Create a browser API key for the Google Drive picker:
+   - Go to "APIs & Services" → "Credentials"
+   - Click "Create Credentials" → "API key"
+   - Restrict it to the Google Picker API if you want tighter access control
+6. **Copy these values:**
    - `GOOGLE_CLIENT_ID`: The Client ID from your OAuth2 credentials
    - `GOOGLE_CLIENT_SECRET`: The Client Secret from your OAuth2 credentials
+   - `GOOGLE_API_KEY`: The browser API key used by the Google Drive picker
    - `ALLOWED_EMAIL_DOMAINS` (optional): e.g. `tinkertanker.com` to restrict setup Google account domains
 
 #### 2. Discord Application Setup
@@ -60,6 +65,7 @@ A Discord bot that automatically uploads photos and videos from Discord channels
 | `GOOGLE_CLIENT_ID` | Google Cloud Console → APIs & Services → Credentials → OAuth 2.0 Client IDs | Your Google OAuth client ID |
 | `GOOGLE_CLIENT_SECRET` | Google Cloud Console → APIs & Services → Credentials → OAuth 2.0 Client IDs | Your Google OAuth client secret |
 | `GOOGLE_REDIRECT_URI` | Your public domain + `/auth/google/callback` | Must match Google's authorized redirect URIs |
+| `GOOGLE_API_KEY` | Google Cloud Console → APIs & Services → Credentials → API keys | Browser API key for the Google Drive picker |
 | `ALLOWED_EMAIL_DOMAINS` | Local app config | Comma-separated list of allowed Google account domains, defaults to `tinkertanker.com` |
 | `SETUP_API_TOKEN` | Admin-created secret | Optional for local deployments; recommended for public deployments to protect setup endpoints |
 | `DISCORD_APPLICATION_ID` | Discord Developer Portal → Your App → General Information | Discord application/client ID |
@@ -73,6 +79,7 @@ A Discord bot that automatically uploads photos and videos from Discord channels
    - `GOOGLE_CLIENT_ID`
    - `GOOGLE_CLIENT_SECRET`
    - `GOOGLE_REDIRECT_URI` (for production domain)
+   - `GOOGLE_API_KEY` (required for the Google Drive picker UI)
    - `ALLOWED_EMAIL_DOMAINS` (optional, for example `tinkertanker.com`)
    - `SETUP_API_TOKEN` (recommended for public deployments)
    - `DISCORD_APPLICATION_ID`
