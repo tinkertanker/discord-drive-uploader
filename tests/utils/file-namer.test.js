@@ -1,4 +1,9 @@
-import { generateFileName, sanitizeForFilename, handleDuplicateFilename } from '../../src/utils/file-namer.js';
+import {
+  generateFileName,
+  sanitizeForFilename,
+  handleDuplicateFilename,
+  reserveDuplicateFilename
+} from '../../src/utils/file-namer.js';
 
 describe('File Namer Utilities', () => {
   describe('sanitizeForFilename', () => {
@@ -98,6 +103,16 @@ describe('File Namer Utilities', () => {
 
     test('handles empty existing files array', () => {
       expect(handleDuplicateFilename('file.jpg', [])).toBe('file.jpg');
+    });
+  });
+
+  describe('reserveDuplicateFilename', () => {
+    test('reserves unique filenames across sequential allocations', () => {
+      const existing = ['photo.jpg'];
+
+      expect(reserveDuplicateFilename('photo.jpg', existing)).toBe('photo_1.jpg');
+      expect(reserveDuplicateFilename('photo.jpg', existing)).toBe('photo_2.jpg');
+      expect(existing).toEqual(['photo.jpg', 'photo_1.jpg', 'photo_2.jpg']);
     });
   });
 });

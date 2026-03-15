@@ -2,7 +2,7 @@ import { Client, GatewayIntentBits, REST, Routes } from 'discord.js';
 import { ConfigStore } from '../services/config-store.js';
 import { GoogleAuthService } from '../services/google-auth.js';
 import { GoogleDriveService } from '../services/google-drive.js';
-import { generateFileName, handleDuplicateFilename } from '../utils/file-namer.js';
+import { generateFileName, reserveDuplicateFilename } from '../utils/file-namer.js';
 import { createLogger } from '../utils/logger.js';
 import fetch from 'node-fetch';
 
@@ -98,8 +98,20 @@ export class DiscordBot {
 
     logger.info(`Processing ${supportedAttachments.length} attachments from channel ${channel.name}`);
 
-    const uploadTasks = supportedAttachments.map(attachment =>
-      this.createUploadTask(attachment, message, channelConfig)
+    const { driveService, existingFilenames } = await this.prepareDriveUploadContext(channelConfig.driveFolderId);
+    const reservedFilenames = supportedAttachments.map((attachment) => {
+      const baseFilename = generateFileName(
+        attachment.name,
+        message.content,
+        message.createdAt,
+        message.member?.displayName || message.author?.globalName || message.author?.username || ''
+      );
+
+      return reserveDuplicateFilename(baseFilename, existingFilenames);
+    });
+
+    const uploadTasks = supportedAttachments.map((attachment, index) =>
+      this.createUploadTask(attachment, reservedFilenames[index], channelConfig.driveFolderId, driveService)
     );
 
     // Send initial response
@@ -150,7 +162,31 @@ export class DiscordBot {
     }
   }
 
-  createUploadTask(attachment, message, channelConfig) {
+  async prepareDriveUploadContext(folderId) {
+    const googleTokens = await this.configStore.getGoogleTokens();
+    if (!googleTokens) {
+      throw new Error('Google Drive not configured');
+    }
+
+    const authService = new GoogleAuthService();
+    if (googleTokens.expired && googleTokens.refresh_token) {
+      const refreshed = await authService.refreshAccessToken(googleTokens.refresh_token);
+      await this.configStore.setGoogleTokens(refreshed);
+      authService.setCredentials(refreshed);
+    } else {
+      authService.setCredentials(googleTokens);
+    }
+
+    const driveService = new GoogleDriveService(authService.getAuthClient());
+    const existingFiles = await driveService.getFilesByFolder(folderId);
+
+    return {
+      driveService,
+      existingFilenames: existingFiles.map((file) => file.name)
+    };
+  }
+
+  createUploadTask(attachment, finalFilename, folderId, driveService) {
     return async () => {
       try {
         // Download file
@@ -161,39 +197,10 @@ export class DiscordBot {
 
         const buffer = Buffer.from(await response.arrayBuffer());
 
-        // Get Google Drive service
-        const googleTokens = await this.configStore.getGoogleTokens();
-        if (!googleTokens) {
-          throw new Error('Google Drive not configured');
-        }
-
-        const authService = new GoogleAuthService();
-        if (googleTokens.expired && googleTokens.refresh_token) {
-          const refreshed = await authService.refreshAccessToken(googleTokens.refresh_token);
-          await this.configStore.setGoogleTokens(refreshed);
-          authService.setCredentials(refreshed);
-        } else {
-          authService.setCredentials(googleTokens);
-        }
-        const driveService = new GoogleDriveService(authService.getAuthClient());
-
-        // Get existing files in folder for duplicate handling
-        const existingFiles = await driveService.getFilesByFolder(channelConfig.driveFolderId);
-        const existingFilenames = existingFiles.map(f => f.name);
-
-        // Generate filename
-        const baseFilename = generateFileName(
-          attachment.name,
-          message.content,
-          message.createdAt,
-          message.member?.displayName || message.author?.globalName || message.author?.username || ''
-        );
-        const finalFilename = handleDuplicateFilename(baseFilename, existingFilenames);
-
         // Upload to Drive
         const uploadResult = buffer.length > 10 * 1024 * 1024 // 10MB
-          ? await driveService.uploadLargeFile(buffer, finalFilename, channelConfig.driveFolderId, attachment.contentType)
-          : await driveService.uploadFile(buffer, finalFilename, channelConfig.driveFolderId, attachment.contentType);
+          ? await driveService.uploadLargeFile(buffer, finalFilename, folderId, attachment.contentType)
+          : await driveService.uploadFile(buffer, finalFilename, folderId, attachment.contentType);
 
         logger.info(`Successfully uploaded ${finalFilename} to Google Drive`);
         return uploadResult;

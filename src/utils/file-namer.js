@@ -52,3 +52,9 @@ export function handleDuplicateFilename(filename, existingFilenames) {
   
   return newFilename;
 }
+
+export function reserveDuplicateFilename(filename, existingFilenames) {
+  const reservedFilename = handleDuplicateFilename(filename, existingFilenames);
+  existingFilenames.push(reservedFilename);
+  return reservedFilename;
+}
