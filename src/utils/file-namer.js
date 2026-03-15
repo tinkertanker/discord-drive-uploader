@@ -1,34 +1,36 @@
-export function generateFileName(originalName, messageContent = '', timestamp = new Date()) {
-  const extension = originalName.split('.').pop().toLowerCase();
-  
-  const date = timestamp.toISOString()
-    .replace(/:/g, '-')
-    .split('.')[0]
-    .replace('T', '-');
-  
-  const sanitizedContent = sanitizeForFilename(messageContent);
-  
-  const baseFileName = sanitizedContent 
-    ? `${date}-${sanitizedContent}`
-    : date;
-  
-  const maxLength = 100 - extension.length - 1;
-  const truncatedBase = baseFileName.substring(0, maxLength);
-  
-  return `${truncatedBase}.${extension}`;
+export function generateFileName(originalName, messageContent = '', timestamp = new Date(), authorName = '') {
+  const nameParts = originalName.split('.');
+  const extension = nameParts.length > 1 ? nameParts.pop().toLowerCase() : '';
+
+  const date = timestamp.toISOString().slice(0, 16).replace('T', '-').replace(/:/g, '-');
+  const safeAuthor = sanitizeForFilename(authorName) || 'Unknown user';
+  const safeComment = sanitizeForFilename(messageContent, 100);
+
+  const baseFileName = safeComment
+    ? `${date} - ${safeAuthor} - ${safeComment}`
+    : `${date} - ${safeAuthor}`;
+
+  return extension ? `${baseFileName}.${extension}` : baseFileName;
 }
 
-export function sanitizeForFilename(text) {
+export function sanitizeForFilename(text, maxLength = 80) {
   if (!text) return '';
-  
+
   return text
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
     .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9\s-]/g, '')
-    .replace(/\s+/g, '_')
-    .replace(/-+/g, '-')
-    .replace(/^-+|-+$/g, '')
-    .substring(0, 50);
+    .replace(/[<>:"/\\|?*]/g, '')
+    .split('')
+    .filter((character) => {
+      const codePoint = character.charCodeAt(0);
+      return codePoint >= 32 && codePoint !== 127;
+    })
+    .join('')
+    .replace(/\s+/g, ' ')
+    .replace(/\.+$/g, '')
+    .substring(0, maxLength)
+    .trim();
 }
 
 export function handleDuplicateFilename(filename, existingFilenames) {

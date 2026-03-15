@@ -156,7 +156,8 @@ export class DiscordBot {
         const baseFilename = generateFileName(
           attachment.name,
           message.content,
-          message.createdAt
+          message.createdAt,
+          message.member?.displayName || message.author?.globalName || message.author?.username || ''
         );
         const finalFilename = handleDuplicateFilename(baseFilename, existingFilenames);
 

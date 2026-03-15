@@ -3,24 +3,24 @@ import { generateFileName, sanitizeForFilename, handleDuplicateFilename } from '
 describe('File Namer Utilities', () => {
   describe('sanitizeForFilename', () => {
     test('removes special characters', () => {
-      expect(sanitizeForFilename('Hello@World!')).toBe('helloworld');
+      expect(sanitizeForFilename('Hello:World?/Test')).toBe('HelloWorldTest');
     });
 
-    test('replaces spaces with underscores', () => {
-      expect(sanitizeForFilename('hello world test')).toBe('hello_world_test');
+    test('preserves spaces', () => {
+      expect(sanitizeForFilename('hello world test')).toBe('hello world test');
     });
 
     test('handles multiple spaces', () => {
-      expect(sanitizeForFilename('hello   world')).toBe('hello_world');
+      expect(sanitizeForFilename('hello   world')).toBe('hello world');
     });
 
-    test('removes leading and trailing hyphens', () => {
-      expect(sanitizeForFilename('-hello-world-')).toBe('hello-world');
+    test('trims leading and trailing whitespace', () => {
+      expect(sanitizeForFilename('  hello world  ')).toBe('hello world');
     });
 
-    test('truncates to 50 characters', () => {
+    test('truncates to provided length', () => {
       const longText = 'a'.repeat(60);
-      expect(sanitizeForFilename(longText)).toHaveLength(50);
+      expect(sanitizeForFilename(longText, 50)).toHaveLength(50);
     });
 
     test('handles empty string', () => {
@@ -30,39 +30,48 @@ describe('File Namer Utilities', () => {
     });
 
     test('preserves numbers and hyphens', () => {
-      expect(sanitizeForFilename('test-123-abc')).toBe('test-123-abc');
+      expect(sanitizeForFilename('Test-123-abc')).toBe('Test-123-abc');
+    });
+
+    test('removes trailing dots', () => {
+      expect(sanitizeForFilename('hello...')).toBe('hello');
     });
   });
 
   describe('generateFileName', () => {
     const fixedDate = new Date('2025-05-23T14:30:45.000Z');
 
-    test('generates filename with message content', () => {
-      const result = generateFileName('photo.jpg', 'Check this out!', fixedDate);
-      expect(result).toBe('2025-05-23-14-30-45-check_this_out.jpg');
+    test('generates filename with author and message content', () => {
+      const result = generateFileName('photo.jpg', 'Check this out!', fixedDate, 'Alice Example');
+      expect(result).toBe('2025-05-23-14-30 - Alice Example - Check this out!.jpg');
     });
 
     test('generates filename without message content', () => {
-      const result = generateFileName('photo.jpg', '', fixedDate);
-      expect(result).toBe('2025-05-23-14-30-45.jpg');
+      const result = generateFileName('photo.jpg', '', fixedDate, 'Alice Example');
+      expect(result).toBe('2025-05-23-14-30 - Alice Example.jpg');
     });
 
     test('handles different file extensions', () => {
-      expect(generateFileName('video.mp4', 'test', fixedDate)).toContain('.mp4');
-      expect(generateFileName('image.PNG', 'test', fixedDate)).toContain('.png');
-      expect(generateFileName('file.webm', 'test', fixedDate)).toContain('.webm');
+      expect(generateFileName('video.mp4', 'test', fixedDate, 'Alice')).toContain('.mp4');
+      expect(generateFileName('image.PNG', 'test', fixedDate, 'Alice')).toContain('.png');
+      expect(generateFileName('file.webm', 'test', fixedDate, 'Alice')).toContain('.webm');
     });
 
-    test('truncates long filenames', () => {
+    test('truncates comment text to first 100 characters', () => {
       const longMessage = 'a'.repeat(150);
-      const result = generateFileName('photo.jpg', longMessage, fixedDate);
-      expect(result.length).toBeLessThanOrEqual(104); // 100 + .jpg
+      const result = generateFileName('photo.jpg', longMessage, fixedDate, 'Alice');
+      expect(result).toBe(`2025-05-23-14-30 - Alice - ${'a'.repeat(100)}.jpg`);
     });
 
     test('handles files with multiple dots', () => {
-      const result = generateFileName('my.photo.backup.jpg', 'test', fixedDate);
+      const result = generateFileName('my.photo.backup.jpg', 'test', fixedDate, 'Alice');
       expect(result).toContain('.jpg');
       expect(result).toContain('test');
+    });
+
+    test('falls back to Unknown user when author name is missing', () => {
+      const result = generateFileName('photo.jpg', 'hello', fixedDate, '');
+      expect(result).toBe('2025-05-23-14-30 - Unknown user - hello.jpg');
     });
   });
 
