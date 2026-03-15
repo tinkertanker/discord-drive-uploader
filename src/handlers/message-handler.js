@@ -3,6 +3,7 @@ import { ConfigStore } from '../services/config-store.js';
 import { GoogleAuthService } from '../services/google-auth.js';
 import { GoogleDriveService } from '../services/google-drive.js';
 import { generateFileName, reserveDuplicateFilename } from '../utils/file-namer.js';
+import { formatUploadStatusMessage } from '../utils/upload-status.js';
 import { createLogger } from '../utils/logger.js';
 import fetch from 'node-fetch';
 
@@ -131,15 +132,30 @@ export class DiscordBot {
 
     const successful = results.filter(r => r.status === 'fulfilled').length;
     const failed = results.filter(r => r.status === 'rejected').length;
+    const uploadedFilenames = results
+      .filter((result) => result.status === 'fulfilled')
+      .map((result) => result.value.fileName);
 
     // Update response
     let responseText = '';
     if (successful === supportedAttachments.length) {
-      responseText = `✅ Uploaded ${successful === 1 ? '' : `${successful} images`}`;
+      responseText = formatUploadStatusMessage({
+        successfulCount: successful,
+        totalCount: supportedAttachments.length,
+        folderName: channelConfig.folderName,
+        folderId: channelConfig.driveFolderId,
+        uploadedFilenames
+      });
     } else if (failed === supportedAttachments.length) {
       responseText = '❌ Upload failed';
     } else {
-      responseText = `✅ Uploaded ${successful}/${supportedAttachments.length} files`;
+      responseText = formatUploadStatusMessage({
+        successfulCount: successful,
+        totalCount: supportedAttachments.length,
+        folderName: channelConfig.folderName,
+        folderId: channelConfig.driveFolderId,
+        uploadedFilenames
+      });
     }
 
     if (uploadingMessage) {
@@ -203,7 +219,10 @@ export class DiscordBot {
           : await driveService.uploadFile(buffer, finalFilename, folderId, attachment.contentType);
 
         logger.info(`Successfully uploaded ${finalFilename} to Google Drive`);
-        return uploadResult;
+        return {
+          ...uploadResult,
+          fileName: finalFilename
+        };
       } catch (error) {
         logger.error(`Failed to upload ${attachment.name}:`, error);
         throw error;
