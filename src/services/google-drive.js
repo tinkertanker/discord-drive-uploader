@@ -19,7 +19,9 @@ export class GoogleDriveService {
         q: 'mimeType=\'application/vnd.google-apps.folder\' and trashed=false',
         fields: 'files(id, name, parents)',
         pageSize,
-        orderBy: 'name'
+        orderBy: 'name',
+        supportsAllDrives: true,
+        includeItemsFromAllDrives: true
       });
 
       logger.info(`Found ${response.data.files.length} folders`);
@@ -98,7 +100,8 @@ export class GoogleDriveService {
       const response = await this.drive.files.create({
         resource: fileMetadata,
         media: media,
-        fields: 'id, name, webViewLink'
+        fields: 'id, name, webViewLink',
+        supportsAllDrives: true
       });
 
       logger.info(`Uploaded file: ${fileName} with ID: ${response.data.id}`);
@@ -143,7 +146,9 @@ export class GoogleDriveService {
         q: `'${folderId}' in parents and trashed=false`,
         fields: 'files(id, name, mimeType, size, createdTime)',
         pageSize,
-        orderBy: 'createdTime desc'
+        orderBy: 'createdTime desc',
+        supportsAllDrives: true,
+        includeItemsFromAllDrives: true
       });
 
       return response.data.files;
