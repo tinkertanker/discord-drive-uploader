@@ -16,6 +16,7 @@ export class DiscordBot {
   constructor() {
     this.client = null;
     this.configStore = new ConfigStore();
+    this.discordToken = null;
   }
 
   async initialize() {
@@ -26,6 +27,8 @@ export class DiscordBot {
       throw new Error('Discord bot token not configured');
     }
 
+    this.discordToken = token;
+
     this.client = new Client({
       intents: [
         GatewayIntentBits.Guilds,
@@ -35,9 +38,22 @@ export class DiscordBot {
     });
 
     this.setupEventHandlers();
+    this.client.rest.setToken(token);
     
     await this.client.login(token);
     logger.info('Discord bot logged in successfully');
+  }
+
+  async ensureDiscordRestToken() {
+    if (!this.client?.rest) return;
+
+    const token = this.discordToken || await this.configStore.getDiscordBotToken();
+    if (!token) {
+      throw new Error('Discord bot token not configured');
+    }
+
+    this.discordToken = token;
+    this.client.rest.setToken(token);
   }
 
   setupEventHandlers() {
@@ -88,7 +104,13 @@ export class DiscordBot {
 
     // Send initial response
     const emoji = supportedAttachments.length === 1 ? '📤' : '📤📤';
-    const uploadingMessage = await message.reply(`${emoji} Uploading ${supportedAttachments.length} file(s)...`);
+    let uploadingMessage = null;
+    try {
+      await this.ensureDiscordRestToken();
+      uploadingMessage = await message.reply(`${emoji} Uploading ${supportedAttachments.length} file(s)...`);
+    } catch (error) {
+      logger.warn(`Failed to send upload status reply for message ${message.id}:`, error);
+    }
 
     // Wait for uploads to complete
     const results = await Promise.allSettled(
@@ -108,7 +130,14 @@ export class DiscordBot {
       responseText = `✅ Uploaded ${successful}/${supportedAttachments.length} files`;
     }
 
-    await uploadingMessage.edit(responseText);
+    if (uploadingMessage) {
+      try {
+        await this.ensureDiscordRestToken();
+        await uploadingMessage.edit(responseText);
+      } catch (error) {
+        logger.warn(`Failed to update upload status reply for message ${message.id}:`, error);
+      }
+    }
 
     // Update bot avatar if last upload was an image
     const lastSuccessful = results
@@ -183,6 +212,7 @@ export class DiscordBot {
       }
 
       const buffer = Buffer.from(await response.arrayBuffer());
+      await this.ensureDiscordRestToken();
       await this.client.user.setAvatar(buffer);
       logger.info('Updated bot avatar to latest uploaded image');
     } catch (error) {
