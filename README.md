@@ -88,6 +88,7 @@ A Discord bot that automatically uploads photos and videos from Discord channels
 3. Visit the app root and complete the setup wizard.
 4. Set the bot token and default folder to persist settings.
    - If `SETUP_API_TOKEN` is set, enter it when prompted before saving config.
+   - In the default-folder step, you can either choose a folder directly or tick the option to create a `default-for-discord` folder inside the selected location.
 5. Use **Link Servers and Channels** to map each Discord channel to a Drive folder and toggle sync.
 
 ### Mac mini on `discord-drive-uploader.tk.sg`

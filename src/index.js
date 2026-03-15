@@ -27,6 +27,7 @@ const BASE_DIR = dirname(fileURLToPath(import.meta.url));
 const PUBLIC_DIR = join(BASE_DIR, '..', 'public');
 const oauthState = new Map();
 const OAUTH_STATE_TTL_MS = 10 * 60 * 1000;
+const DEFAULT_DISCORD_FOLDER_NAME = 'default-for-discord';
 let bot = null;
 let botStartPromise = null;
 
@@ -295,6 +296,17 @@ async function getGoogleTokensForClient() {
   return refreshed;
 }
 
+async function getGoogleDriveServiceForClient() {
+  const tokens = await getGoogleTokensForClient();
+  if (!tokens) {
+    return null;
+  }
+
+  const authService = new GoogleAuthService();
+  authService.setCredentials(tokens);
+  return new GoogleDriveService(authService.getAuthClient());
+}
+
 const server = createServer(async (req, res) => {
   const method = req.method || 'GET';
   const requestUrl = new URL(req.url || '/', `http://localhost:${PORT}`);
@@ -407,13 +419,47 @@ const server = createServer(async (req, res) => {
       if (body === null) return;
 
       const { folderId, folderName } = body;
+      const createDefaultFolder = normalizeBoolean(body.createDefaultFolder, false);
       if (!folderId || !folderName) {
         return sendResponse(res, json({ error: 'Folder ID and name are required' }, 400));
       }
 
-      await configStore.setDefaultFolder(folderId, folderName);
+      let finalFolderId = folderId;
+      let finalFolderName = folderName;
+      let createdFolder = null;
+      let reusedExistingFolder = false;
 
-      return sendResponse(res, json({ success: true, folder: { id: folderId, name: folderName }, message: 'Default folder configured' }));
+      if (createDefaultFolder) {
+        const driveService = await getGoogleDriveServiceForClient();
+        if (!driveService) {
+          return sendResponse(res, json({ error: 'Not authenticated with Google' }, 401));
+        }
+
+        const existingFolder = await driveService.findFolderByName(DEFAULT_DISCORD_FOLDER_NAME, folderId);
+        const targetFolder = existingFolder || await driveService.createFolder(DEFAULT_DISCORD_FOLDER_NAME, folderId);
+
+        finalFolderId = targetFolder.id;
+        finalFolderName = targetFolder.name;
+        createdFolder = {
+          id: targetFolder.id,
+          name: targetFolder.name,
+          parentId: folderId,
+          parentName: folderName
+        };
+        reusedExistingFolder = Boolean(existingFolder);
+      }
+
+      await configStore.setDefaultFolder(finalFolderId, finalFolderName);
+
+      return sendResponse(res, json({
+        success: true,
+        folder: { id: finalFolderId, name: finalFolderName },
+        createdFolder,
+        reusedExistingFolder,
+        message: createDefaultFolder
+          ? `${reusedExistingFolder ? 'Reused' : 'Created'} ${finalFolderName} and configured it as the default folder`
+          : 'Default folder configured'
+      }));
     }
 
     if (method === 'POST' && pathname === '/api/config-discord') {

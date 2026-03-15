@@ -1,8 +1,10 @@
 const setupTokenStorageKey = 'discord-drive-setup-token';
 const setupAuthRequired = getMeta('setup-auth-required') === 'true';
+const DEFAULT_DISCORD_FOLDER_NAME = 'default-for-discord';
 let currentStep = 2;
 let selectedFolderId = null;
 let selectedFolderName = null;
+let createDefaultFolder = false;
 let folders = [];
 let googlePickerConfig = null;
 let pickerApiReadyPromise = null;
@@ -93,6 +95,7 @@ function resetToGoogleDriveStep(message) {
   googlePickerConfig = null;
   selectedFolderId = null;
   selectedFolderName = null;
+  createDefaultFolder = false;
 
   const params = new URLSearchParams(window.location.search);
   params.delete('step');
@@ -218,19 +221,31 @@ function updateDefaultFolderSummary() {
   if (!selectedFolder) return;
 
   if (!selectedFolderId || !selectedFolderName) {
-    selectedFolder.innerHTML = '<p class="info">No fallback folder selected yet.</p>';
+    selectedFolder.innerHTML = createDefaultFolder
+      ? `<p class="info">No parent folder selected yet. We will create <code>${escapeHtml(DEFAULT_DISCORD_FOLDER_NAME)}</code> inside the folder you pick.</p>`
+      : '<p class="info">No fallback folder selected yet.</p>';
     if (continueButton) {
       continueButton.disabled = true;
     }
     return;
   }
 
-  selectedFolder.innerHTML = `
-    <div class="picker-selection">
-      <strong>Selected folder</strong>
-      <span>${escapeHtml(selectedFolderName)}</span>
-    </div>
-  `;
+  if (createDefaultFolder) {
+    selectedFolder.innerHTML = `
+      <div class="picker-selection">
+        <strong>Selected parent folder</strong>
+        <span>${escapeHtml(selectedFolderName)}</span>
+        <small>A new <code>${escapeHtml(DEFAULT_DISCORD_FOLDER_NAME)}</code> folder will be created inside this location and used for uploads.</small>
+      </div>
+    `;
+  } else {
+    selectedFolder.innerHTML = `
+      <div class="picker-selection">
+        <strong>Selected folder</strong>
+        <span>${escapeHtml(selectedFolderName)}</span>
+      </div>
+    `;
+  }
 
   if (continueButton) {
     continueButton.disabled = false;
@@ -243,12 +258,26 @@ function renderDefaultFolderPicker() {
 
   folderList.innerHTML = `
     <div class="picker-launcher">
+      <label class="checkbox-option" for="create-default-folder-checkbox">
+        <input type="checkbox" id="create-default-folder-checkbox">
+        <span>Create a <code>${escapeHtml(DEFAULT_DISCORD_FOLDER_NAME)}</code> folder here for me</span>
+      </label>
+      <p class="info compact-info">If ticked, the folder you choose becomes the parent folder and we will create a new upload folder inside it.</p>
       <button class="btn btn-primary" id="open-default-folder-picker" data-default-text="Choose folder in Google Drive">
         Choose folder in Google Drive
       </button>
       <div id="selected-folder"></div>
     </div>
   `;
+
+  const checkbox = document.getElementById('create-default-folder-checkbox');
+  if (checkbox) {
+    checkbox.checked = createDefaultFolder;
+    checkbox.addEventListener('change', (event) => {
+      createDefaultFolder = event.currentTarget.checked;
+      updateDefaultFolderSummary();
+    });
+  }
 
   document.getElementById('open-default-folder-picker')?.addEventListener('click', openDefaultFolderPicker);
   updateDefaultFolderSummary();
@@ -347,7 +376,11 @@ async function openDefaultFolderPicker(event) {
   setButtonLoading(button, true);
 
   try {
-    await openDriveFolderPicker('Select a default Google Drive folder', (folder) => {
+    const pickerTitle = createDefaultFolder
+      ? 'Select where to create your default-for-discord folder'
+      : 'Select a default Google Drive folder';
+
+    await openDriveFolderPicker(pickerTitle, (folder) => {
       selectedFolderId = folder.id;
       selectedFolderName = folder.name;
       updateDefaultFolderSummary();
@@ -423,12 +456,19 @@ async function saveFolderAndContinue() {
   try {
     const response = await apiPost('/api/config-folder', {
       folderId: selectedFolderId,
-      folderName: selectedFolderName
+      folderName: selectedFolderName,
+      createDefaultFolder
     });
     throwIfUnauthorized(response);
     if (!response.ok) {
       const message = await parseResponseError(response, 'Failed to save folder configuration');
       throw new Error(message);
+    }
+
+    const result = await response.json();
+    if (result.folder?.id && result.folder?.name) {
+      selectedFolderId = result.folder.id;
+      selectedFolderName = result.folder.name;
     }
 
     nextStep();

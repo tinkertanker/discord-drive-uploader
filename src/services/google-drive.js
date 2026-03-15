@@ -9,6 +9,10 @@ export class GoogleDriveService {
     this.drive = google.drive({ version: 'v3', auth: authClient });
   }
 
+  escapeDriveQueryValue(value) {
+    return String(value).replace(/\\/g, '\\\\').replace(/'/g, '\\\'');
+  }
+
   async listFolders(pageSize = 100) {
     try {
       const response = await this.drive.files.list({
@@ -39,7 +43,8 @@ export class GoogleDriveService {
 
       const response = await this.drive.files.create({
         resource: fileMetadata,
-        fields: 'id, name'
+        fields: 'id, name',
+        supportsAllDrives: true
       });
 
       logger.info(`Created folder: ${name} with ID: ${response.data.id}`);
@@ -47,6 +52,34 @@ export class GoogleDriveService {
     } catch (error) {
       logger.error('Failed to create folder:', error);
       throw new Error('Failed to create folder in Google Drive');
+    }
+  }
+
+  async findFolderByName(name, parentId = null) {
+    try {
+      const clauses = [
+        'mimeType=\'application/vnd.google-apps.folder\'',
+        'trashed=false',
+        `name='${this.escapeDriveQueryValue(name)}'`
+      ];
+
+      if (parentId) {
+        clauses.push(`'${this.escapeDriveQueryValue(parentId)}' in parents`);
+      }
+
+      const response = await this.drive.files.list({
+        q: clauses.join(' and '),
+        fields: 'files(id, name, parents)',
+        pageSize: 1,
+        orderBy: 'createdTime desc',
+        supportsAllDrives: true,
+        includeItemsFromAllDrives: true
+      });
+
+      return response.data.files?.[0] || null;
+    } catch (error) {
+      logger.error('Failed to find folder by name:', error);
+      throw new Error('Failed to search Google Drive folders');
     }
   }
 
