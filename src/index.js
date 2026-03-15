@@ -21,7 +21,7 @@ const configStore = new ConfigStore();
 await configStore.initialize();
 
 const PORT = Number(process.env.PORT || 3000);
-const ALLOWED_EMAIL_DOMAINS = (process.env.ALLOWED_EMAIL_DOMAINS || process.env.ALLOWED_EMAIL_DOMAIN || 'tinkertanker.com').toLowerCase().split(',').map((domain) => domain.trim()).filter(Boolean);
+const ALLOWED_EMAIL_DOMAINS = (process.env.ALLOWED_EMAIL_DOMAINS || process.env.ALLOWED_EMAIL_DOMAIN || '').toLowerCase().split(',').map((domain) => domain.trim()).filter(Boolean);
 const SETUP_API_TOKEN = (process.env.SETUP_API_TOKEN || '').trim();
 const BASE_DIR = dirname(fileURLToPath(import.meta.url));
 const PUBLIC_DIR = join(BASE_DIR, '..', 'public');
