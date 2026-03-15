@@ -230,6 +230,22 @@ main {
     gap: 1rem;
 }
 
+.picker-field {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.picker-button {
+    margin-top: 0;
+    width: 100%;
+    justify-content: center;
+}
+
+.picker-inline-summary {
+    min-height: 3rem;
+}
+
 .checkbox-option {
     display: inline-flex;
     align-items: center;
@@ -260,6 +276,10 @@ main {
     display: flex;
     flex-direction: column;
     gap: 0.35rem;
+}
+
+.picker-selection small {
+    color: var(--text-secondary);
 }
 
 .loading {

@@ -59,8 +59,13 @@
                 <select id="channel-selector" class="input"></select>
               </div>
               <div>
-                <label for="channel-folder-selector">Drive folder</label>
-                <select id="channel-folder-selector" class="input"></select>
+                <label for="open-channel-folder-picker">Drive folder</label>
+                <div class="picker-field">
+                  <button class="btn btn-secondary picker-button" id="open-channel-folder-picker" data-default-text="Choose folder in Google Drive">
+                    Choose folder in Google Drive
+                  </button>
+                  <div id="selected-channel-folder" class="picker-inline-summary"></div>
+                </div>
               </div>
             </div>
             <button class="btn btn-primary" id="link-channel-btn">Link channel to folder</button>

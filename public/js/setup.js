@@ -5,6 +5,8 @@ let currentStep = 2;
 let selectedFolderId = null;
 let selectedFolderName = null;
 let createDefaultFolder = false;
+let selectedChannelFolderId = null;
+let selectedChannelFolderName = null;
 let folders = [];
 let googlePickerConfig = null;
 let pickerApiReadyPromise = null;
@@ -96,6 +98,8 @@ function resetToGoogleDriveStep(message) {
   selectedFolderId = null;
   selectedFolderName = null;
   createDefaultFolder = false;
+  selectedChannelFolderId = null;
+  selectedChannelFolderName = null;
 
   const params = new URLSearchParams(window.location.search);
   params.delete('step');
@@ -149,7 +153,24 @@ function setButtonLoading(button, loading) {
 }
 
 function formatChannelLabel(channelId) {
-  return `<#${channelId}>`;
+  return escapeHtml(String(channelId));
+}
+
+function updateChannelFolderSummary() {
+  const selectedFolder = document.getElementById('selected-channel-folder');
+  if (!selectedFolder) return;
+
+  if (!selectedChannelFolderId || !selectedChannelFolderName) {
+    selectedFolder.innerHTML = '<p class="info">No Google Drive folder selected yet.</p>';
+    return;
+  }
+
+  selectedFolder.innerHTML = `
+    <div class="picker-selection">
+      <strong>Selected folder</strong>
+      <span>${escapeHtml(selectedChannelFolderName)}</span>
+    </div>
+  `;
 }
 
 async function apiGet(path) {
@@ -564,36 +585,19 @@ async function loadChannelConfigs() {
 async function loadMappingStep() {
   const guildSelector = document.getElementById('guild-selector');
   const channelSelector = document.getElementById('channel-selector');
-  const folderSelector = document.getElementById('channel-folder-selector');
-  if (!guildSelector || !channelSelector || !folderSelector) return;
+  const folderPickerButton = document.getElementById('open-channel-folder-picker');
+  if (!guildSelector || !channelSelector || !folderPickerButton) return;
 
   setLinkFeedback('');
 
-  guildSelector.innerHTML = '<option value="">Loading guilds...</option>';
-  channelSelector.innerHTML = '<option value="">Select guild first</option>';
-  folderSelector.innerHTML = '<option value="">Choose folder</option>';
-
-  if (!folders.length) {
-    await loadFolders();
-  }
-
-  if (!folders.length) {
-    setLinkFeedback('Connect Google Drive first before adding channel links.', true);
-    return;
-  }
-
-  folders.forEach((folder) => {
-    const option = document.createElement('option');
-    option.value = folder.id;
-    option.textContent = folder.name;
-    option.dataset.folderName = folder.name;
-    folderSelector.appendChild(option);
-  });
+  guildSelector.innerHTML = '<option value="">Loading servers...</option>';
+  channelSelector.innerHTML = '<option value="">Select a server first</option>';
+  updateChannelFolderSummary();
 
   guilds = await loadGuilds();
   guildSelector.innerHTML = guilds.length
-    ? '<option value="">Select a guild</option>'
-    : '<option value="">Invite the bot first</option>';
+    ? '<option value="">Select a server</option>'
+    : '<option value="">Invite the bot to a server first</option>';
   if (!guilds.length) {
     channelSelector.disabled = true;
     document.getElementById('link-channel-btn').disabled = true;
@@ -626,7 +630,7 @@ async function onGuildSelectionChange(event) {
   const channelSelector = document.getElementById('channel-selector');
 
   if (!guildSelector.value) {
-    channelSelector.innerHTML = '<option value="">Select a guild first</option>';
+    channelSelector.innerHTML = '<option value="">Select a server first</option>';
     channelSelector.disabled = true;
     return;
   }
@@ -643,7 +647,7 @@ async function onGuildSelectionChange(event) {
   channels.forEach((channel) => {
     const option = document.createElement('option');
     option.value = channel.id;
-    option.textContent = `#${channel.name}`;
+    option.textContent = channel.name;
     channelSelector.appendChild(option);
   });
 }
@@ -723,11 +727,11 @@ function renderChannelLinks() {
 async function linkChannelToFolder() {
   const guildId = getInputValue('guild-selector');
   const channelId = getInputValue('channel-selector');
-  const folderId = getInputValue('channel-folder-selector');
-  const folderName = document.querySelector(`#channel-folder-selector [value="${CSS.escape(folderId)}"]`)?.dataset.folderName || '';
+  const folderId = selectedChannelFolderId;
+  const folderName = selectedChannelFolderName;
 
   if (!guildId || !channelId || !folderId || !folderName) {
-    setLinkFeedback('Pick a guild, channel, and folder before linking.', true);
+    setLinkFeedback('Pick a server, channel, and folder before linking.', true);
     return;
   }
 
@@ -788,6 +792,24 @@ async function removeChannelMapping(guildId, channelId) {
 function setupMappingActions() {
   const button = document.getElementById('link-channel-btn');
   button?.addEventListener('click', linkChannelToFolder);
+  document.getElementById('open-channel-folder-picker')?.addEventListener('click', openChannelFolderPicker);
+}
+
+async function openChannelFolderPicker(event) {
+  const button = event.currentTarget;
+  setButtonLoading(button, true);
+
+  try {
+    await openDriveFolderPicker('Select a Google Drive folder for this channel', (folder) => {
+      selectedChannelFolderId = folder.id;
+      selectedChannelFolderName = folder.name;
+      updateChannelFolderSummary();
+    });
+  } catch (error) {
+    showError(error.message);
+  } finally {
+    setButtonLoading(button, false);
+  }
 }
 
 function generateInviteLink() {
