@@ -281,25 +281,48 @@ async function openDriveFolderPicker(title, onPicked) {
 
   await ensureGooglePickerLoaded();
 
-  const pickerView = new window.google.picker.DocsView()
+  const ViewId = window.google.picker.ViewId;
+  const DocsView = window.google.picker.DocsView;
+
+  // My Drive (includes Shared drives when SUPPORT_DRIVES is enabled)
+  const myDriveView = new DocsView(ViewId.DOCS)
     .setIncludeFolders(true)
     .setSelectFolderEnabled(true)
-    .setMimeTypes('application/vnd.google-apps.folder');
+    .setEnableDrives(true);
+
+  // Shared with me
+  const sharedWithMeView = new DocsView(ViewId.DOCS)
+    .setOwnedByMe(false)
+    .setIncludeFolders(true)
+    .setSelectFolderEnabled(true);
+
+  // Starred
+  const starredView = new DocsView(ViewId.DOCS)
+    .setStarred(true)
+    .setIncludeFolders(true)
+    .setSelectFolderEnabled(true);
 
   let pickerBuilder = new window.google.picker.PickerBuilder()
     .setOAuthToken(config.accessToken)
     .setOrigin(window.location.origin)
-    .addView(pickerView)
+    .addView(myDriveView)
+    .addView(sharedWithMeView)
+    .addView(starredView)
     .setTitle(title)
     .setCallback((data) => {
       if (data.action !== window.google.picker.Action.PICKED || !data.docs?.length) {
         return;
       }
 
-      const folder = data.docs[0];
+      const doc = data.docs[0];
+      // Only accept folder selection
+      if (doc.mimeType !== 'application/vnd.google-apps.folder') {
+        showError('Please select a folder, not a file.');
+        return;
+      }
       onPicked({
-        id: folder.id,
-        name: folder.name
+        id: doc.id,
+        name: doc.name || doc.title || 'Unnamed folder'
       });
     });
 
