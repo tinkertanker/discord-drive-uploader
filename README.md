@@ -160,7 +160,9 @@ Complete the browser setup in this order:
    - You can either choose a folder directly
    - Or choose a parent folder and create a `default-for-discord` folder inside it
 3. Enter the Discord bot token
-4. Link Discord servers and channels to Drive folders
+4. Invite the bot to the Discord server you want to sync
+5. Link Discord servers and channels to Drive folders
+   - Only servers the bot has already joined will appear in the picker
    - You can also review and change the default fallback folder again from this page later
 
 If `SETUP_API_TOKEN` is configured, enter it when prompted before saving configuration.

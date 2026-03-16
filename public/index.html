@@ -49,18 +49,18 @@
                 <li class="step-nav-item" data-nav-step="5">
                   <span class="step-nav-number">4</span>
                   <div>
-                    <strong>Link servers and channels</strong>
-                    <p>
-                      Map each Discord channel to either a specific Drive folder or the default
-                      folder.
-                    </p>
+                    <strong>Invite the bot</strong>
+                    <p>Add the bot to your Discord server before choosing channels to sync.</p>
                   </div>
                 </li>
                 <li class="step-nav-item" data-nav-step="6">
                   <span class="step-nav-number">5</span>
                   <div>
-                    <strong>Finish setup</strong>
-                    <p>Copy the invite link and start syncing attachments.</p>
+                    <strong>Link servers and channels</strong>
+                    <p>
+                      Map each Discord channel to either a specific Drive folder or the default
+                      folder.
+                    </p>
                   </div>
                 </li>
               </ol>
@@ -121,6 +121,32 @@
               </div>
 
               <div class="step" data-step="5">
+                <section class="task-card">
+                  <p id="setup-status">Preparing invite link...</p>
+                  <div class="invite-panel">
+                    <div class="card-copy">
+                      <h3>Invite the bot</h3>
+                    </div>
+                    <div class="invite-link">
+                      <input type="text" id="bot-invite" readonly class="input" />
+                      <button class="btn btn-secondary" onclick="copyInviteLink(event)">
+                        Copy
+                      </button>
+                    </div>
+                  </div>
+                  <p class="info">
+                    Invite the bot to the Discord server you want to sync. Once it has joined, you
+                    can continue and pick from that server's channels.
+                  </p>
+                  <div class="step-actions">
+                    <button class="btn btn-primary" onclick="nextStep()">
+                      Continue to channel mapping
+                    </button>
+                  </div>
+                </section>
+              </div>
+
+              <div class="step" data-step="6">
                 <div class="mapping-layout">
                   <section
                     class="task-card default-folder-panel"
@@ -165,6 +191,9 @@
                   <section class="task-card mapping-form" aria-labelledby="channel-mapping-title">
                     <div class="card-copy">
                       <h3 id="channel-mapping-title">Add a new channel link</h3>
+                      <p class="info compact-info">
+                        Only servers the bot has already joined will appear here.
+                      </p>
                     </div>
                     <div class="form-grid">
                       <div>
@@ -208,32 +237,10 @@
                       <div class="card-copy">
                         <h3 id="channel-links-title">Active channel links</h3>
                       </div>
-                      <button class="btn btn-primary" onclick="nextStep()">Continue</button>
                     </div>
                     <div id="channel-links-list" class="mapping-list"></div>
                   </section>
                 </div>
-              </div>
-
-              <div class="step" data-step="6">
-                <section class="task-card">
-                  <p id="setup-status">Finalising setup...</p>
-                  <div class="invite-panel">
-                    <div class="card-copy">
-                      <h3>Invite the bot</h3>
-                    </div>
-                    <div class="invite-link">
-                      <input type="text" id="bot-invite" readonly class="input" />
-                      <button class="btn btn-secondary" onclick="copyInviteLink(event)">
-                        Copy
-                      </button>
-                    </div>
-                  </div>
-                  <p class="info">
-                    After inviting the bot, post photos or videos in a mapped channel and the
-                    uploader will move them into the correct Google Drive folder automatically.
-                  </p>
-                </section>
               </div>
             </div>
 

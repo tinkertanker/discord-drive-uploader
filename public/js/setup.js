@@ -13,10 +13,10 @@ const STEP_METADATA = {
     title: 'Add the bot token',
   },
   5: {
-    title: 'Link servers and channels',
+    title: 'Invite the bot',
   },
   6: {
-    title: 'Finish setup',
+    title: 'Link servers and channels',
   },
 };
 const THEME_META_COLORS = {
@@ -109,10 +109,10 @@ function showStep(step) {
   if (step === 3) {
     loadDefaultFolderStep();
   } else if (step === 5) {
-    loadMappingStep();
-  } else if (step === 6) {
     generateInviteLink();
     loadSetupComplete();
+  } else if (step === 6) {
+    loadMappingStep();
   }
 }
 
