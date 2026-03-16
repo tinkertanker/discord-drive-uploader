@@ -16,16 +16,11 @@
   --error: #d14343;
   --border: rgba(18, 32, 51, 0.12);
   --border-strong: rgba(18, 32, 51, 0.18);
-  --shadow-lg: 0 24px 60px rgba(15, 23, 42, 0.12);
-  --shadow-md: 0 16px 36px rgba(15, 23, 42, 0.08);
-  --shadow-sm: 0 10px 24px rgba(15, 23, 42, 0.06);
-  --hero-gradient:
-    radial-gradient(circle at top left, rgba(37, 99, 235, 0.18), transparent 34%),
-    radial-gradient(circle at top right, rgba(15, 118, 110, 0.14), transparent 32%),
-    linear-gradient(135deg, rgba(255, 255, 255, 0.88), rgba(242, 247, 255, 0.82));
-  --page-gradient:
-    radial-gradient(circle at top, rgba(37, 99, 235, 0.12), transparent 28%),
-    linear-gradient(180deg, #f7fafe 0%, #edf3fb 100%);
+  --shadow-lg: 0 12px 28px rgba(15, 23, 42, 0.08);
+  --shadow-md: 0 8px 18px rgba(15, 23, 42, 0.06);
+  --shadow-sm: 0 3px 10px rgba(15, 23, 42, 0.04);
+  --hero-gradient: linear-gradient(180deg, rgba(255, 255, 255, 0.94), rgba(247, 250, 254, 0.94));
+  --page-gradient: linear-gradient(180deg, #f6f9fd 0%, #edf3fb 100%);
   --pill-background: rgba(29, 78, 216, 0.1);
   --pill-text: #1746b7;
   --status-live: rgba(15, 118, 110, 0.12);
@@ -52,16 +47,11 @@
     --error: #f87171;
     --border: rgba(148, 163, 184, 0.16);
     --border-strong: rgba(148, 163, 184, 0.28);
-    --shadow-lg: 0 28px 72px rgba(2, 6, 23, 0.42);
-    --shadow-md: 0 20px 40px rgba(2, 6, 23, 0.32);
-    --shadow-sm: 0 12px 24px rgba(2, 6, 23, 0.24);
-    --hero-gradient:
-      radial-gradient(circle at top left, rgba(56, 189, 248, 0.2), transparent 34%),
-      radial-gradient(circle at top right, rgba(45, 212, 191, 0.16), transparent 28%),
-      linear-gradient(135deg, rgba(12, 20, 36, 0.95), rgba(11, 27, 45, 0.88));
-    --page-gradient:
-      radial-gradient(circle at top, rgba(56, 189, 248, 0.14), transparent 26%),
-      linear-gradient(180deg, #050d18 0%, #091322 100%);
+    --shadow-lg: 0 14px 32px rgba(2, 6, 23, 0.24);
+    --shadow-md: 0 10px 22px rgba(2, 6, 23, 0.18);
+    --shadow-sm: 0 4px 10px rgba(2, 6, 23, 0.14);
+    --hero-gradient: linear-gradient(180deg, rgba(12, 20, 36, 0.96), rgba(11, 19, 34, 0.96));
+    --page-gradient: linear-gradient(180deg, #060f1b 0%, #0b1524 100%);
     --pill-background: rgba(96, 165, 250, 0.14);
     --pill-text: #bfdbfe;
     --status-live: rgba(45, 212, 191, 0.16);
@@ -89,34 +79,6 @@ body {
   line-height: 1.6;
 }
 
-body::before,
-body::after {
-  content: '';
-  position: fixed;
-  inset: auto;
-  pointer-events: none;
-  z-index: 0;
-  border-radius: 999px;
-  filter: blur(24px);
-  opacity: 0.8;
-}
-
-body::before {
-  top: 5rem;
-  left: -3rem;
-  width: 18rem;
-  height: 18rem;
-  background: var(--background-accent);
-}
-
-body::after {
-  right: -4rem;
-  bottom: 7rem;
-  width: 20rem;
-  height: 20rem;
-  background: rgba(15, 118, 110, 0.08);
-}
-
 .page-shell {
   position: relative;
   z-index: 1;
@@ -135,19 +97,10 @@ body::after {
   display: block;
 }
 
-.hero-copy,
-.sidebar-panel,
-.wizard-progress,
-.wizard,
-.error-message {
-  backdrop-filter: blur(18px);
-  -webkit-backdrop-filter: blur(18px);
-}
-
 .hero-copy {
   background: var(--hero-gradient);
   border: 1px solid var(--border);
-  border-radius: 28px;
+  border-radius: 14px;
   box-shadow: var(--shadow-lg);
 }
 
@@ -176,9 +129,9 @@ body::after {
 }
 
 .sidebar-panel {
-  background: var(--surface);
+  background: var(--surface-strong);
   border: 1px solid var(--border);
-  border-radius: 24px;
+  border-radius: 12px;
   box-shadow: var(--shadow-md);
   padding: 1.4rem;
 }
@@ -204,11 +157,10 @@ body::after {
   gap: 0.85rem;
   align-items: start;
   padding: 0.9rem 1rem;
-  border-radius: 18px;
+  border-radius: 10px;
   border: 1px solid transparent;
   background: transparent;
   transition:
-    transform 0.2s ease,
     background 0.2s ease,
     border-color 0.2s ease;
 }
@@ -226,8 +178,6 @@ body::after {
 .step-nav-item.active {
   background: var(--surface-strong);
   border-color: var(--border-strong);
-  transform: translateX(4px);
-  box-shadow: var(--shadow-sm);
 }
 
 .step-nav-item.complete .step-nav-number {
@@ -260,9 +210,9 @@ body::after {
 }
 
 .wizard-progress {
-  background: var(--surface);
+  background: var(--surface-strong);
   border: 1px solid var(--border);
-  border-radius: 24px;
+  border-radius: 12px;
   padding: 1.35rem 1.5rem;
   box-shadow: var(--shadow-md);
 }
@@ -290,7 +240,7 @@ body::after {
 .wizard {
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 28px;
+  border-radius: 14px;
   padding: clamp(1.1rem, 2vw, 1.8rem);
   box-shadow: var(--shadow-lg);
 }
@@ -317,9 +267,9 @@ body::after {
 }
 
 .task-card {
-  background: linear-gradient(180deg, var(--surface-strong), var(--surface-muted));
+  background: var(--surface-strong);
   border: 1px solid var(--border);
-  border-radius: 22px;
+  border-radius: 12px;
   padding: 1.25rem;
   box-shadow: var(--shadow-sm);
 }
@@ -360,21 +310,18 @@ body::after {
   min-height: 3rem;
   padding: 0.85rem 1.1rem;
   border: 1px solid transparent;
-  border-radius: 14px;
+  border-radius: 8px;
   font: inherit;
   font-weight: 700;
   cursor: pointer;
   text-decoration: none;
   transition:
-    transform 0.18s ease,
-    box-shadow 0.18s ease,
     background 0.18s ease,
     border-color 0.18s ease;
 }
 
 .btn:hover:not(:disabled) {
-  transform: translateY(-1px);
-  box-shadow: var(--shadow-sm);
+  border-color: var(--border-strong);
 }
 
 .btn:disabled {
@@ -412,9 +359,8 @@ select.input {
   background: var(--surface-strong);
   color: var(--text);
   border: 1px solid var(--border);
-  border-radius: 14px;
+  border-radius: 8px;
   font: inherit;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
 }
 
 .input::placeholder {
@@ -425,7 +371,7 @@ select.input {
 select.input:focus {
   outline: none;
   border-color: var(--primary-color);
-  box-shadow: 0 0 0 4px rgba(29, 78, 216, 0.14);
+  box-shadow: 0 0 0 2px rgba(29, 78, 216, 0.16);
 }
 
 .field-label {
@@ -451,7 +397,7 @@ select.input:focus {
 .mapping-item {
   background: var(--surface-strong);
   border: 1px solid var(--border);
-  border-radius: 18px;
+  border-radius: 10px;
   box-shadow: var(--shadow-sm);
 }
 
@@ -464,7 +410,7 @@ select.input:focus {
 
 .folder-item.selected {
   border-color: var(--primary-color);
-  box-shadow: 0 0 0 4px rgba(29, 78, 216, 0.12);
+  box-shadow: 0 0 0 2px rgba(29, 78, 216, 0.12);
 }
 
 .picker-launcher,
@@ -663,7 +609,7 @@ code {
   background: linear-gradient(135deg, rgba(209, 67, 67, 0.95), rgba(169, 41, 41, 0.95));
   color: #ffffff;
   padding: 1rem 1.2rem;
-  border-radius: 18px;
+  border-radius: 10px;
   box-shadow: var(--shadow-md);
 }
 
@@ -724,7 +670,7 @@ code {
   .sidebar-panel,
   .wizard-progress,
   .wizard {
-    border-radius: 22px;
+    border-radius: 12px;
   }
 
   .wizard {
