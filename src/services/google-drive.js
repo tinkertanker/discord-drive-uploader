@@ -86,6 +86,59 @@ export class GoogleDriveService {
     }
   }
 
+  isDatePrefixedFolderName(folderName, datePrefix) {
+    if (folderName === datePrefix) {
+      return true;
+    }
+
+    if (!folderName.startsWith(datePrefix)) {
+      return false;
+    }
+
+    const nextCharacter = folderName.charAt(datePrefix.length);
+    return Boolean(nextCharacter) && !/\d/.test(nextCharacter);
+  }
+
+  async findFolderByDatePrefix(datePrefix, parentId = null) {
+    try {
+      const clauses = [
+        'mimeType=\'application/vnd.google-apps.folder\'',
+        'trashed=false',
+        `name contains '${this.escapeDriveQueryValue(datePrefix)}'`
+      ];
+
+      if (parentId) {
+        clauses.push(`'${this.escapeDriveQueryValue(parentId)}' in parents`);
+      }
+
+      let pageToken;
+
+      do {
+        const response = await this.drive.files.list({
+          q: clauses.join(' and '),
+          fields: 'nextPageToken, files(id, name, parents)',
+          pageSize: 100,
+          pageToken,
+          orderBy: 'createdTime desc',
+          supportsAllDrives: true,
+          includeItemsFromAllDrives: true
+        });
+
+        const matchingFolder = response.data.files?.find((folder) => this.isDatePrefixedFolderName(folder.name, datePrefix));
+        if (matchingFolder) {
+          return matchingFolder;
+        }
+
+        pageToken = response.data.nextPageToken;
+      } while (pageToken);
+
+      return null;
+    } catch (error) {
+      logger.error('Failed to find folder by date prefix:', error);
+      throw new Error('Failed to search Google Drive folders');
+    }
+  }
+
   async ensureFolder(name, parentId = null) {
     const folderKey = `${parentId || 'root'}:${name}`;
     const pendingEnsure = this.pendingFolderEnsures.get(folderKey);
@@ -97,6 +150,11 @@ export class GoogleDriveService {
       const existingFolder = await this.findFolderByName(name, parentId);
       if (existingFolder) {
         return existingFolder;
+      }
+
+      const existingDatePrefixedFolder = await this.findFolderByDatePrefix(name, parentId);
+      if (existingDatePrefixedFolder) {
+        return existingDatePrefixedFolder;
       }
 
       return this.createFolder(name, parentId);
