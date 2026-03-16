@@ -52,7 +52,7 @@
             <div class="default-folder-panel-header">
               <div>
                 <h3 id="default-folder-panel-title">Default fallback folder</h3>
-                <p class="info compact-info">Uploads from unmapped channels will continue to use this folder.</p>
+                <p class="info compact-info">Channels explicitly linked to the default folder will upload here.</p>
               </div>
             </div>
             <div id="current-default-folder" class="picker-inline-summary"></div>
@@ -92,7 +92,10 @@
                 </div>
               </div>
             </div>
-            <button class="btn btn-primary" id="link-channel-btn">Link channel to folder</button>
+            <div class="link-channel-actions">
+              <button class="btn btn-primary" id="link-channel-btn">Link channel to folder</button>
+              <button class="btn btn-secondary" id="link-channel-default-btn">Link channel to default folder</button>
+            </div>
             <p class="info">You can add as many channel mappings as you want.</p>
             <h3 style="margin-top: 1.5rem;">Active channel links</h3>
             <div id="channel-links-list" class="mapping-list"></div>

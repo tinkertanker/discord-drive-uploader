@@ -569,20 +569,29 @@ const server = createServer(async (req, res) => {
         }));
       }
 
-      const { folderId, folderName } = body;
-      if (!folderId || !folderName) {
-        return sendResponse(res, json({ error: 'folderId and folderName are required when enabling a mapping' }, 400));
+      const rawFolderId = body.folderId;
+      const rawFolderName = body.folderName;
+      const useDefault = rawFolderId == null;
+      const folderId = typeof rawFolderId === 'string' ? rawFolderId.trim() : rawFolderId;
+      const folderName = typeof rawFolderName === 'string' ? rawFolderName.trim() : rawFolderName;
+
+      // Allow folderId to be null/omitted to link the channel to the default folder
+      if (!useDefault && (typeof folderId !== 'string' || !folderId)) {
+        return sendResponse(res, json({ error: 'folderId must be a non-empty string when specifying a folder' }, 400));
       }
 
-      await configStore.setChannelFolder(guildId, channelId, folderId, folderName, true);
+      if (!useDefault && (typeof folderName !== 'string' || !folderName)) {
+        return sendResponse(res, json({ error: 'folderName is required when specifying a folderId' }, 400));
+      }
+
+      await configStore.setChannelFolder(guildId, channelId, useDefault ? null : folderId, useDefault ? null : folderName, true);
       return sendResponse(res, json({
         success: true,
         action: 'enabled',
         mapping: {
           guildId,
           channelId,
-          folderId,
-          folderName
+          ...(useDefault ? { useDefault: true } : { folderId, folderName })
         }
       }));
     }
