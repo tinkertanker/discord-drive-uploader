@@ -116,6 +116,39 @@ export class ConfigStore {
     }
   }
 
+  async getUploadFolder(guildId, channelId) {
+    try {
+      const channelConfig = await this.getChannelFolder(guildId, channelId);
+      if (channelConfig) {
+        return {
+          ...channelConfig,
+          source: 'channel'
+        };
+      }
+
+      const guildConfig = await this.getGuildConfig(guildId);
+      if (guildConfig.channels?.[channelId]?.enabled === false) {
+        return null;
+      }
+
+      const defaultFolder = await this.getDefaultFolder();
+      if (!defaultFolder?.id || !defaultFolder?.name) {
+        return null;
+      }
+
+      return {
+        driveFolderId: defaultFolder.id,
+        folderName: defaultFolder.name,
+        configuredAt: defaultFolder.configuredAt || null,
+        enabled: true,
+        source: 'default'
+      };
+    } catch (error) {
+      logger.error('Failed to resolve upload folder:', error);
+      return null;
+    }
+  }
+
   async setChannelSyncEnabled(guildId, channelId, enabled) {
     try {
       const guildConfig = await this.getGuildConfig(guildId);

@@ -122,6 +122,67 @@ describe('ConfigStore', () => {
       expect(result).toBeNull();
     });
 
+    test('falls back to the default folder for uploads when a channel is unmapped', async () => {
+      mockStore.get
+        .mockResolvedValueOnce({ channels: {} })
+        .mockResolvedValueOnce({ channels: {} })
+        .mockResolvedValueOnce({
+          id: 'default123',
+          name: 'Fallback Uploads',
+          configuredAt: 1710000000000
+        });
+
+      const result = await configStore.getUploadFolder('guild123', 'unmapped-channel');
+      expect(result).toEqual({
+        driveFolderId: 'default123',
+        folderName: 'Fallback Uploads',
+        configuredAt: 1710000000000,
+        enabled: true,
+        source: 'default'
+      });
+    });
+
+    test('prefers the channel folder over the default folder for uploads', async () => {
+      mockStore.get.mockResolvedValueOnce({
+        channels: {
+          channel456: {
+            driveFolderId: 'folder789',
+            folderName: 'Channel Folder',
+            configuredAt: 1710000000001,
+            enabled: true
+          }
+        }
+      });
+
+      const result = await configStore.getUploadFolder('guild123', 'channel456');
+      expect(result).toEqual({
+        driveFolderId: 'folder789',
+        folderName: 'Channel Folder',
+        configuredAt: 1710000000001,
+        enabled: true,
+        source: 'channel'
+      });
+    });
+
+    test('does not fall back when a channel mapping is explicitly disabled', async () => {
+      const disabledChannelConfig = {
+        channels: {
+          channel456: {
+            driveFolderId: 'folder789',
+            folderName: 'Channel Folder',
+            configuredAt: 1710000000001,
+            enabled: false
+          }
+        }
+      };
+      mockStore.get
+        .mockResolvedValueOnce(disabledChannelConfig)
+        .mockResolvedValueOnce(disabledChannelConfig);
+
+      const result = await configStore.getUploadFolder('guild123', 'channel456');
+      expect(result).toBeNull();
+    });
+
     test('stores the default folder in the backing store', async () => {
       await configStore.setDefaultFolder('folder123', 'Uploads');
 
@@ -129,6 +190,32 @@ describe('ConfigStore', () => {
         id: 'folder123',
         name: 'Uploads',
         configuredAt: expect.any(Number)
+      });
+    });
+
+    test('gets the stored default folder metadata', async () => {
+      const defaultFolder = {
+        id: 'folder123',
+        name: 'Uploads',
+        configuredAt: 1710000000000
+      };
+      mockStore.get.mockResolvedValueOnce(defaultFolder);
+
+      const result = await configStore.getDefaultFolder();
+      expect(mockStore.get).toHaveBeenCalledWith('default_folder');
+      expect(result).toEqual(defaultFolder);
+    });
+
+    test('parses legacy stringified default folder metadata', async () => {
+      mockStore.get.mockResolvedValueOnce(JSON.stringify({
+        id: 'folder123',
+        name: 'Uploads'
+      }));
+
+      const result = await configStore.getDefaultFolder();
+      expect(result).toEqual({
+        id: 'folder123',
+        name: 'Uploads'
       });
     });
   });

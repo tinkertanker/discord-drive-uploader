@@ -7,6 +7,7 @@ let selectedFolderName = null;
 let createDefaultFolder = false;
 let selectedChannelFolderId = null;
 let selectedChannelFolderName = null;
+let currentDefaultFolder = null;
 let folders = [];
 let googlePickerConfig = null;
 let pickerApiReadyPromise = null;
@@ -125,6 +126,15 @@ function escapeHtml(value) {
 
 function setLinkFeedback(message, isError = false) {
   const feedback = document.getElementById('link-feedback');
+  feedback.textContent = message;
+  feedback.style.color = isError ? 'var(--error)' : 'var(--secondary-color)';
+  feedback.classList.toggle('show', Boolean(message));
+}
+
+function setDefaultFolderFeedback(message, isError = false) {
+  const feedback = document.getElementById('default-folder-feedback');
+  if (!feedback) return;
+
   feedback.textContent = message;
   feedback.style.color = isError ? 'var(--error)' : 'var(--secondary-color)';
   feedback.classList.toggle('show', Boolean(message));
@@ -413,6 +423,18 @@ async function openDefaultFolderPicker(event) {
   }
 }
 
+async function loadCurrentDefaultFolder() {
+  const response = await apiGet('/api/config-folder');
+  throwIfUnauthorized(response);
+  if (!response.ok) {
+    const message = await parseResponseError(response, 'Failed to load the default folder');
+    throw new Error(message);
+  }
+
+  const data = await response.json();
+  return data.folder || null;
+}
+
 async function loadFolders() {
   const folderList = document.getElementById('folder-list');
   folderList.innerHTML = '<div class="loading">Loading folders...</div>';
@@ -466,32 +488,37 @@ function selectFolder(folderId, folderName, element) {
   }
 }
 
-async function saveFolderAndContinue() {
+async function persistDefaultFolderSelection() {
   if (!selectedFolderId) {
-    showError('Please select a folder');
-    return;
+    throw new Error('Please select a folder');
   }
 
+  const response = await apiPost('/api/config-folder', {
+    folderId: selectedFolderId,
+    folderName: selectedFolderName,
+    createDefaultFolder
+  });
+  throwIfUnauthorized(response);
+  if (!response.ok) {
+    const message = await parseResponseError(response, 'Failed to save folder configuration');
+    throw new Error(message);
+  }
+
+  const result = await response.json();
+  if (result.folder?.id && result.folder?.name) {
+    selectedFolderId = result.folder.id;
+    selectedFolderName = result.folder.name;
+    currentDefaultFolder = result.folder;
+  }
+
+  return result;
+}
+
+async function saveFolderAndContinue() {
   const button = document.getElementById('continue-folder');
   setButtonLoading(button, true);
   try {
-    const response = await apiPost('/api/config-folder', {
-      folderId: selectedFolderId,
-      folderName: selectedFolderName,
-      createDefaultFolder
-    });
-    throwIfUnauthorized(response);
-    if (!response.ok) {
-      const message = await parseResponseError(response, 'Failed to save folder configuration');
-      throw new Error(message);
-    }
-
-    const result = await response.json();
-    if (result.folder?.id && result.folder?.name) {
-      selectedFolderId = result.folder.id;
-      selectedFolderName = result.folder.name;
-    }
-
+    await persistDefaultFolderSelection();
     nextStep();
   } catch (error) {
     showError(`Failed to save folder: ${error.message}`);
@@ -582,6 +609,113 @@ async function loadChannelConfigs() {
   return data.configs || [];
 }
 
+function updateCurrentDefaultFolderSummary() {
+  const selectedFolder = document.getElementById('current-default-folder');
+  if (!selectedFolder) return;
+
+  if (!currentDefaultFolder?.id || !currentDefaultFolder?.name) {
+    selectedFolder.innerHTML = '<p class="info">No default folder is configured yet.</p>';
+    return;
+  }
+
+  selectedFolder.innerHTML = `
+    <div class="picker-selection">
+      <strong>Current default folder</strong>
+      <span>${escapeHtml(currentDefaultFolder.name)}</span>
+    </div>
+  `;
+}
+
+function updateChangeDefaultFolderSummary() {
+  const selectedFolder = document.getElementById('selected-change-default-folder');
+  const saveButton = document.getElementById('save-default-folder-btn');
+  if (!selectedFolder) return;
+
+  if (!selectedFolderId || !selectedFolderName) {
+    selectedFolder.innerHTML = createDefaultFolder
+      ? `<p class="info">No parent folder selected yet. We will create <code>${escapeHtml(DEFAULT_DISCORD_FOLDER_NAME)}</code> inside the folder you pick.</p>`
+      : '<p class="info">No replacement folder selected yet.</p>';
+    if (saveButton) {
+      saveButton.disabled = true;
+    }
+    return;
+  }
+
+  if (createDefaultFolder) {
+    selectedFolder.innerHTML = `
+      <div class="picker-selection">
+        <strong>Selected parent folder</strong>
+        <span>${escapeHtml(selectedFolderName)}</span>
+        <small>A new <code>${escapeHtml(DEFAULT_DISCORD_FOLDER_NAME)}</code> folder will be created inside this location and used for uploads.</small>
+      </div>
+    `;
+  } else {
+    selectedFolder.innerHTML = `
+      <div class="picker-selection">
+        <strong>Selected folder</strong>
+        <span>${escapeHtml(selectedFolderName)}</span>
+      </div>
+    `;
+  }
+
+  if (saveButton) {
+    saveButton.disabled = false;
+  }
+}
+
+function resetDefaultFolderDraftSelection() {
+  selectedFolderId = null;
+  selectedFolderName = null;
+  createDefaultFolder = false;
+
+  const checkbox = document.getElementById('change-default-folder-checkbox');
+  if (checkbox) {
+    checkbox.checked = false;
+  }
+
+  updateChangeDefaultFolderSummary();
+}
+
+async function openChangeDefaultFolderPicker(event) {
+  const button = event.currentTarget;
+  setButtonLoading(button, true);
+
+  try {
+    const pickerTitle = createDefaultFolder
+      ? 'Select where to create your new default-for-discord folder'
+      : 'Select a new default Google Drive folder';
+
+    await openDriveFolderPicker(pickerTitle, (folder) => {
+      selectedFolderId = folder.id;
+      selectedFolderName = folder.name;
+      updateChangeDefaultFolderSummary();
+    });
+  } catch (error) {
+    setDefaultFolderFeedback(error.message, true);
+  } finally {
+    setButtonLoading(button, false);
+  }
+}
+
+async function saveChangedDefaultFolder() {
+  const button = document.getElementById('save-default-folder-btn');
+  setButtonLoading(button, true);
+  setDefaultFolderFeedback('');
+
+  try {
+    const result = await persistDefaultFolderSelection();
+    currentDefaultFolder = result.folder || null;
+    updateCurrentDefaultFolderSummary();
+    resetDefaultFolderDraftSelection();
+    setDefaultFolderFeedback(result.message || 'Default folder updated.');
+  } catch (error) {
+    setDefaultFolderFeedback(error.message, true);
+  } finally {
+    setButtonLoading(button, false);
+    updateChangeDefaultFolderSummary();
+  }
+}
+
 async function loadMappingStep() {
   const guildSelector = document.getElementById('guild-selector');
   const channelSelector = document.getElementById('channel-selector');
@@ -589,39 +723,52 @@ async function loadMappingStep() {
   if (!guildSelector || !channelSelector || !folderPickerButton) return;
 
   setLinkFeedback('');
+  setDefaultFolderFeedback('');
+  resetDefaultFolderDraftSelection();
 
   guildSelector.innerHTML = '<option value="">Loading servers...</option>';
   channelSelector.innerHTML = '<option value="">Select a server first</option>';
   updateChannelFolderSummary();
+  try {
+    currentDefaultFolder = await loadCurrentDefaultFolder();
+    updateCurrentDefaultFolderSummary();
 
-  guilds = await loadGuilds();
-  guildSelector.innerHTML = guilds.length
-    ? '<option value="">Select a server</option>'
-    : '<option value="">Invite the bot to a server first</option>';
-  if (!guilds.length) {
+    guilds = await loadGuilds();
+    guildSelector.innerHTML = guilds.length
+      ? '<option value="">Select a server</option>'
+      : '<option value="">Invite the bot to a server first</option>';
+    if (!guilds.length) {
+      channelSelector.disabled = true;
+      document.getElementById('link-channel-btn').disabled = true;
+    } else {
+      document.getElementById('link-channel-btn').disabled = false;
+    }
+
+    guilds.forEach((guild) => {
+      const option = document.createElement('option');
+      option.value = guild.id;
+      option.textContent = guild.name;
+      guildSelector.appendChild(option);
+    });
+
+    const links = await loadChannelConfigs();
+    channelConfigs.clear();
+    links.forEach((config) => {
+      channelConfigs.set(`${config.guildId}:${config.channelId}`, config);
+    });
+    renderChannelLinks();
+
+    guildSelector.onchange = onGuildSelectionChange;
+    if (guilds.length > 0) {
+      channelSelector.disabled = true;
+    }
+  } catch (error) {
+    console.error('Failed to load linked folders step:', error);
+    setLinkFeedback(error.message || 'Failed to load linked folders.', true);
+    guildSelector.innerHTML = '<option value="">Unable to load servers</option>';
+    channelSelector.innerHTML = '<option value="">Unable to load channels</option>';
     channelSelector.disabled = true;
     document.getElementById('link-channel-btn').disabled = true;
-  } else {
-    document.getElementById('link-channel-btn').disabled = false;
-  }
-
-  guilds.forEach((guild) => {
-    const option = document.createElement('option');
-    option.value = guild.id;
-    option.textContent = guild.name;
-    guildSelector.appendChild(option);
-  });
-
-  const links = await loadChannelConfigs();
-  channelConfigs.clear();
-  links.forEach((config) => {
-    channelConfigs.set(`${config.guildId}:${config.channelId}`, config);
-  });
-  renderChannelLinks();
-
-  guildSelector.onchange = onGuildSelectionChange;
-  if (guilds.length > 0) {
-    channelSelector.disabled = true;
   }
 }
 
@@ -793,6 +940,12 @@ function setupMappingActions() {
   const button = document.getElementById('link-channel-btn');
   button?.addEventListener('click', linkChannelToFolder);
   document.getElementById('open-channel-folder-picker')?.addEventListener('click', openChannelFolderPicker);
+  document.getElementById('open-change-default-folder-picker')?.addEventListener('click', openChangeDefaultFolderPicker);
+  document.getElementById('save-default-folder-btn')?.addEventListener('click', saveChangedDefaultFolder);
+  document.getElementById('change-default-folder-checkbox')?.addEventListener('change', (event) => {
+    createDefaultFolder = event.currentTarget.checked;
+    updateChangeDefaultFolderSummary();
+  });
 }
 
 async function openChannelFolderPicker(event) {

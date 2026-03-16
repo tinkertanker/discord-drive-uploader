@@ -48,6 +48,30 @@
         <div class="step" data-step="5">
           <h2>⚙️ Link Servers and Channels</h2>
           <p>Choose which server and channel you want this bot to monitor, then map each channel to a Google Drive folder.</p>
+          <section class="default-folder-panel" aria-labelledby="default-folder-panel-title">
+            <div class="default-folder-panel-header">
+              <div>
+                <h3 id="default-folder-panel-title">Default fallback folder</h3>
+                <p class="info compact-info">Uploads from unmapped channels will continue to use this folder.</p>
+              </div>
+            </div>
+            <div id="current-default-folder" class="picker-inline-summary"></div>
+            <div class="picker-launcher default-folder-actions">
+              <label class="checkbox-option" for="change-default-folder-checkbox">
+                <input type="checkbox" id="change-default-folder-checkbox">
+                <span>Create a <code>default-for-discord</code> folder here for me</span>
+              </label>
+              <p class="info compact-info">If ticked, the folder you choose becomes the parent folder and we will create a new upload folder inside it.</p>
+              <button class="btn btn-secondary picker-button" id="open-change-default-folder-picker" data-default-text="Choose new default folder in Google Drive">
+                Choose new default folder in Google Drive
+              </button>
+              <div id="selected-change-default-folder" class="picker-inline-summary"></div>
+              <button class="btn btn-primary" id="save-default-folder-btn" data-default-text="Save default folder" disabled>
+                Save default folder
+              </button>
+            </div>
+            <p id="default-folder-feedback" class="info"></p>
+          </section>
           <div class="mapping-form">
             <div class="form-grid">
               <div>
