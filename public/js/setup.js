@@ -839,28 +839,58 @@ function getMeta(name) {
   return element ? element.content : null;
 }
 
-async function loadSetupComplete() {
+async function loadSetupComplete({ rethrow = false } = {}) {
   try {
     const responseWithAuth = await apiGet('/api/setup-complete');
     throwIfUnauthorized(responseWithAuth);
-    if (!responseWithAuth.ok) return;
+    if (!responseWithAuth.ok) return null;
 
     const data = await responseWithAuth.json();
     document.getElementById('setup-status').textContent = data.message;
+    return data;
   } catch (error) {
     console.error('Failed to load setup status:', error);
+    if (rethrow) {
+      throw error;
+    }
+    return null;
   }
 }
 
-window.addEventListener('DOMContentLoaded', () => {
+async function resumeSetupFlow() {
+  const params = new URLSearchParams(window.location.search);
+  const explicitStep = Number(params.get('step'));
+
+  if ([2, 3, 4, 5, 6].includes(explicitStep)) {
+    showStep(explicitStep);
+    return;
+  }
+
+  if (params.get('oauth') === 'success') {
+    showStep(3);
+    return;
+  }
+
+  try {
+    const data = await loadSetupComplete({ rethrow: true });
+    const resumeStep = Number(data?.resumeStep);
+
+    if ([2, 3, 4, 5].includes(resumeStep)) {
+      showStep(resumeStep);
+      return;
+    }
+  } catch (error) {
+    showError(error.message || 'Failed to restore setup state.');
+  }
+
+  showStep(2);
+}
+
+window.addEventListener('DOMContentLoaded', async () => {
   addContinueButtonToFolderStep();
   setupMappingActions();
 
   const params = new URLSearchParams(window.location.search);
-  if (params.get('step') === '3' || params.get('oauth') === 'success') {
-    showStep(3);
-  }
-
   const error = params.get('error');
   if (error === 'unauthorized_email') {
     const email = params.get('email') || 'this Google account';
@@ -868,5 +898,9 @@ window.addEventListener('DOMContentLoaded', () => {
     const allowedText = allowed ? `@${allowed.split(',')[0]}` : 'an approved domain';
     const used = email.includes('@') ? email.split('@')[1] : email;
     showError(`This bot is restricted to ${allowedText}. You signed in with ${used}. Please use an approved Google account.`);
+    showStep(2);
+    return;
   }
+
+  await resumeSetupFlow();
 });

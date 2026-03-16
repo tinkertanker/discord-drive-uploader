@@ -581,18 +581,37 @@ const server = createServer(async (req, res) => {
     if (method === 'GET' && pathname === '/api/setup-complete') {
       if (!isAuthorizedSetupRequest(req, res)) return;
 
-      const googleTokens = await configStore.getGoogleTokens();
+      const storedGoogleTokens = await configStore.getGoogleTokens();
       const discordToken = await configStore.getDiscordBotToken();
       const defaultFolder = await configStore.getDefaultFolder();
+      let googleConnected = false;
+
+      if (storedGoogleTokens) {
+        try {
+          googleConnected = Boolean(await getGoogleTokensForClient());
+        } catch (error) {
+          logger.warn(`Unable to restore Google session during setup status check: ${error.message}`);
+        }
+      }
+
+      const resumeStep = !googleConnected
+        ? 2
+        : !defaultFolder
+          ? 3
+          : !discordToken
+            ? 4
+            : 5;
 
       return sendResponse(res, json({
         success: true,
         message: 'Configuration is stored on disk.',
         configured: {
-          google: Boolean(googleTokens),
+          google: googleConnected,
           discord: Boolean(discordToken),
           defaultFolder: Boolean(defaultFolder)
         },
+        resumeStep,
+        defaultFolder: defaultFolder || null,
         botInviteUrl: `https://discord.com/api/oauth2/authorize?client_id=${process.env.DISCORD_APPLICATION_ID}&permissions=3072&scope=bot%20applications.commands`
       }));
     }
