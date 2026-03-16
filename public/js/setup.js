@@ -1,6 +1,36 @@
 const setupTokenStorageKey = 'discord-drive-setup-token';
 const setupAuthRequired = getMeta('setup-auth-required') === 'true';
 const DEFAULT_DISCORD_FOLDER_NAME = 'default-for-discord';
+const SETUP_STEP_ORDER = [2, 3, 4, 5, 6];
+const STEP_METADATA = {
+  2: {
+    title: 'Connect Google Drive',
+    description: 'Start by authorising the Google account that should store uploaded media.',
+  },
+  3: {
+    title: 'Choose a default folder',
+    description:
+      'Set the fallback Google Drive location used when a channel uploads to the default route.',
+  },
+  4: {
+    title: 'Add the bot token',
+    description: 'Paste the Discord bot token so the uploader can load your servers and channels.',
+  },
+  5: {
+    title: 'Link servers and channels',
+    description:
+      'Map each channel to a specific Drive folder or to the default folder for simpler routing.',
+  },
+  6: {
+    title: 'Finish setup',
+    description:
+      'Copy the invite link, add the bot to Discord, and start posting in your mapped channels.',
+  },
+};
+const THEME_META_COLORS = {
+  light: '#eef4fb',
+  dark: '#07111f',
+};
 let currentStep = 2;
 let selectedFolderId = null;
 let selectedFolderName = null;
@@ -55,7 +85,7 @@ function withSetupAuthHeaders(extra = {}) {
 
   return {
     ...extra,
-    'X-Setup-Token': token
+    'X-Setup-Token': token,
   };
 }
 
@@ -82,6 +112,7 @@ function showStep(step) {
 
   stepElement.classList.add('active');
   currentStep = step;
+  updateWizardProgress(step);
 
   if (step === 3) {
     loadDefaultFolderStep();
@@ -91,6 +122,33 @@ function showStep(step) {
     generateInviteLink();
     loadSetupComplete();
   }
+}
+
+function updateWizardProgress(step) {
+  const index = SETUP_STEP_ORDER.indexOf(step);
+  const metadata = STEP_METADATA[step];
+  const countEl = document.getElementById('wizard-progress-count');
+  const titleEl = document.getElementById('wizard-progress-title');
+  const descriptionEl = document.getElementById('wizard-progress-description');
+
+  if (countEl && index >= 0) {
+    countEl.textContent = `Step ${index + 1} of ${SETUP_STEP_ORDER.length}`;
+  }
+
+  if (titleEl && metadata?.title) {
+    titleEl.textContent = metadata.title;
+  }
+
+  if (descriptionEl && metadata?.description) {
+    descriptionEl.textContent = metadata.description;
+  }
+
+  document.querySelectorAll('[data-nav-step]').forEach((item) => {
+    const navStep = Number(item.dataset.navStep);
+    const navIndex = SETUP_STEP_ORDER.indexOf(navStep);
+    item.classList.toggle('active', navStep === step);
+    item.classList.toggle('complete', navIndex >= 0 && navIndex < index);
+  });
 }
 
 function resetToGoogleDriveStep(message) {
@@ -126,6 +184,8 @@ function escapeHtml(value) {
 
 function setLinkFeedback(message, isError = false) {
   const feedback = document.getElementById('link-feedback');
+  if (!feedback) return;
+
   feedback.textContent = message;
   feedback.style.color = isError ? 'var(--error)' : 'var(--secondary-color)';
   feedback.classList.toggle('show', Boolean(message));
@@ -185,19 +245,19 @@ function updateChannelFolderSummary() {
 
 async function apiGet(path) {
   const headers = withSetupAuthHeaders({
-    'Content-Type': 'application/json'
+    'Content-Type': 'application/json',
   });
   return fetch(path, { headers });
 }
 
 async function apiPost(path, body) {
   const headers = withSetupAuthHeaders({
-    'Content-Type': 'application/json'
+    'Content-Type': 'application/json',
   });
   return fetch(path, {
     method: 'POST',
     headers,
-    body: JSON.stringify(body)
+    body: JSON.stringify(body),
   });
 }
 
@@ -238,7 +298,7 @@ async function ensureGooglePickerLoaded() {
     pickerApiReadyPromise = new Promise((resolve, reject) => {
       window.gapi.load('picker', {
         callback: resolve,
-        onerror: () => reject(new Error('Failed to load Google Picker'))
+        onerror: () => reject(new Error('Failed to load Google Picker')),
       });
     });
   }
@@ -310,7 +370,9 @@ function renderDefaultFolderPicker() {
     });
   }
 
-  document.getElementById('open-default-folder-picker')?.addEventListener('click', openDefaultFolderPicker);
+  document
+    .getElementById('open-default-folder-picker')
+    ?.addEventListener('click', openDefaultFolderPicker);
   updateDefaultFolderSummary();
 }
 
@@ -382,7 +444,7 @@ async function openDriveFolderPicker(title, onPicked) {
       }
       onPicked({
         id: doc.id,
-        name: doc.name || doc.title || 'Unnamed folder'
+        name: doc.name || doc.title || 'Unnamed folder',
       });
     });
 
@@ -460,11 +522,14 @@ async function loadFolders() {
     }
 
     folderList.innerHTML = folders
-      .map((folder) => `
+      .map(
+        (folder) => `
         <button class="btn btn-secondary folder-item" data-folder-id="${folder.id}" data-folder-name="${folder.name}">
           ${folder.name}
         </button>
-      `).join('');
+      `
+      )
+      .join('');
 
     folderList.querySelectorAll('.folder-item').forEach((button) => {
       button.addEventListener('click', () => {
@@ -496,7 +561,7 @@ async function persistDefaultFolderSelection() {
   const response = await apiPost('/api/config-folder', {
     folderId: selectedFolderId,
     folderName: selectedFolderName,
-    createDefaultFolder
+    createDefaultFolder,
   });
   throwIfUnauthorized(response);
   if (!response.ok) {
@@ -528,8 +593,9 @@ async function saveFolderAndContinue() {
 }
 
 function addContinueButtonToFolderStep() {
-  const stepThree = document.querySelector('[data-step="3"]');
+  const stepActions = document.getElementById('folder-step-actions');
   if (document.getElementById('continue-folder')) return;
+  if (!stepActions) return;
 
   const button = document.createElement('button');
   button.id = 'continue-folder';
@@ -538,7 +604,7 @@ function addContinueButtonToFolderStep() {
   button.textContent = 'Continue';
   button.disabled = !selectedFolderId;
   button.addEventListener('click', saveFolderAndContinue);
-  stepThree.appendChild(button);
+  stepActions.appendChild(button);
 }
 
 function addLoadingText(button, loadingText) {
@@ -562,7 +628,7 @@ async function saveDiscordToken() {
   addLoadingText(button, 'Saving...');
   try {
     const response = await apiPost('/api/config-discord', {
-      token
+      token,
     });
     throwIfUnauthorized(response);
     if (!response.ok) {
@@ -815,11 +881,18 @@ function renderChannelLinks() {
     .sort((a, b) => `${a.guildName}|${a.channelId}`.localeCompare(`${b.guildName}|${b.channelId}`))
     .map((config) => {
       const key = `${config.guildId}:${config.channelId}`;
+      const destination = config.useDefault
+        ? 'Default upload folder'
+        : escapeHtml(config.folderName || 'No folder selected');
       return `
         <div class="mapping-item">
-          <div>
-            <strong>${config.guildName || config.guildId}</strong><br>
-            <small>${formatChannelLabel(config.channelId)} → ${config.useDefault ? '(default folder)' : config.folderName || 'No folder'}</small>
+          <div class="mapping-item-main">
+            <div class="mapping-item-head">
+              <strong>${escapeHtml(config.guildName || config.guildId)}</strong>
+              <span class="status-pill ${config.enabled ? 'live' : 'paused'}">${config.enabled ? 'Syncing' : 'Paused'}</span>
+            </div>
+            <p class="mapping-subtitle">Channel ${formatChannelLabel(config.channelId)}</p>
+            <p class="mapping-target">Uploads to ${destination}</p>
           </div>
           <div class="actions">
             <button class="btn btn-primary" data-action="toggle" data-key="${key}">
@@ -844,7 +917,7 @@ function renderChannelLinks() {
       btn.disabled = true;
       try {
         await updateChannelMapping(config.guildId, config.channelId, {
-          enabled
+          enabled,
         });
         await loadMappingStep();
       } catch (error) {
@@ -894,7 +967,7 @@ async function linkChannelToFolder() {
       guildId,
       channelId,
       folderId,
-      folderName
+      folderName,
     });
     throwIfUnauthorized(response);
     if (!response.ok) {
@@ -932,7 +1005,7 @@ async function linkChannelToDefaultFolder() {
   try {
     const response = await apiPost('/api/config-channel', {
       guildId,
-      channelId
+      channelId,
     });
     throwIfUnauthorized(response);
     if (!response.ok) {
@@ -955,7 +1028,7 @@ async function updateChannelMapping(guildId, channelId, updates) {
     channelId,
     enabled: updates.enabled,
     folderId: updates.folderId,
-    folderName: updates.folderName
+    folderName: updates.folderName,
   });
   throwIfUnauthorized(response);
   if (!response.ok) {
@@ -968,7 +1041,7 @@ async function removeChannelMapping(guildId, channelId) {
   const response = await apiPost('/api/config-channel', {
     guildId,
     channelId,
-    remove: true
+    remove: true,
   });
   throwIfUnauthorized(response);
   if (!response.ok) {
@@ -980,10 +1053,18 @@ async function removeChannelMapping(guildId, channelId) {
 function setupMappingActions() {
   const button = document.getElementById('link-channel-btn');
   button?.addEventListener('click', linkChannelToFolder);
-  document.getElementById('link-channel-default-btn')?.addEventListener('click', linkChannelToDefaultFolder);
-  document.getElementById('open-channel-folder-picker')?.addEventListener('click', openChannelFolderPicker);
-  document.getElementById('open-change-default-folder-picker')?.addEventListener('click', openChangeDefaultFolderPicker);
-  document.getElementById('save-default-folder-btn')?.addEventListener('click', saveChangedDefaultFolder);
+  document
+    .getElementById('link-channel-default-btn')
+    ?.addEventListener('click', linkChannelToDefaultFolder);
+  document
+    .getElementById('open-channel-folder-picker')
+    ?.addEventListener('click', openChannelFolderPicker);
+  document
+    .getElementById('open-change-default-folder-picker')
+    ?.addEventListener('click', openChangeDefaultFolderPicker);
+  document
+    .getElementById('save-default-folder-btn')
+    ?.addEventListener('click', saveChangedDefaultFolder);
   document.getElementById('change-default-folder-checkbox')?.addEventListener('change', (event) => {
     createDefaultFolder = event.currentTarget.checked;
     updateChangeDefaultFolderSummary();
@@ -1018,20 +1099,44 @@ function generateInviteLink() {
 
 function copyInviteLink(event) {
   const inviteInput = document.getElementById('bot-invite');
-  inviteInput.select();
-  document.execCommand('copy');
-
   const btn = event.target;
   const previous = btn.textContent;
-  btn.textContent = 'Copied';
-  setTimeout(() => {
-    btn.textContent = previous;
-  }, 2000);
+
+  const showCopiedState = () => {
+    btn.textContent = 'Copied';
+    setTimeout(() => {
+      btn.textContent = previous;
+    }, 2000);
+  };
+
+  if (navigator.clipboard?.writeText) {
+    navigator.clipboard
+      .writeText(inviteInput.value)
+      .then(showCopiedState)
+      .catch(() => {
+        inviteInput.select();
+        document.execCommand('copy');
+        showCopiedState();
+      });
+    return;
+  }
+
+  inviteInput.select();
+  document.execCommand('copy');
+  showCopiedState();
 }
 
 function getMeta(name) {
   const element = document.querySelector(`meta[name="${name}"]`);
   return element ? element.content : null;
+}
+
+function syncThemeMeta() {
+  const themeMeta = document.querySelector('meta[name="theme-color"]');
+  if (!themeMeta) return;
+
+  const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+  themeMeta.setAttribute('content', prefersDark ? THEME_META_COLORS.dark : THEME_META_COLORS.light);
 }
 
 async function loadSetupComplete({ rethrow = false } = {}) {
@@ -1082,8 +1187,16 @@ async function resumeSetupFlow() {
 }
 
 window.addEventListener('DOMContentLoaded', async () => {
+  syncThemeMeta();
   addContinueButtonToFolderStep();
   setupMappingActions();
+
+  const colorSchemeQuery = window.matchMedia('(prefers-color-scheme: dark)');
+  if (typeof colorSchemeQuery.addEventListener === 'function') {
+    colorSchemeQuery.addEventListener('change', syncThemeMeta);
+  } else if (typeof colorSchemeQuery.addListener === 'function') {
+    colorSchemeQuery.addListener(syncThemeMeta);
+  }
 
   const params = new URLSearchParams(window.location.search);
   const error = params.get('error');
@@ -1092,7 +1205,9 @@ window.addEventListener('DOMContentLoaded', async () => {
     const allowed = params.get('allowed');
     const allowedText = allowed ? `@${allowed.split(',')[0]}` : 'an approved domain';
     const used = email.includes('@') ? email.split('@')[1] : email;
-    showError(`This bot is restricted to ${allowedText}. You signed in with ${used}. Please use an approved Google account.`);
+    showError(
+      `This bot is restricted to ${allowedText}. You signed in with ${used}. Please use an approved Google account.`
+    );
     showStep(2);
     return;
   }

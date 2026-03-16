@@ -1,130 +1,340 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="discord-app-id" content="%DISCORD_APPLICATION_ID%">
-  <meta name="setup-auth-required" content="%SETUP_AUTH_REQUIRED%">
-  <title>Discord Drive Uploader - Setup</title>
-  <link rel="stylesheet" href="/css/style.css">
-</head>
-<body>
-  <div class="container">
-    <header>
-      <h1>📸 Discord Drive Uploader</h1>
-      <p>Upload Discord photos and videos to Google Drive automatically</p>
-    </header>
-
-    <main>
-      <div id="setup-wizard" class="wizard">
-        <div class="step active" data-step="2">
-          <h2>Connect Google Drive</h2>
-          <p>Start OAuth and allow Drive folder access.</p>
-          <button class="btn btn-google" onclick="startGoogleAuth()">
-            <img src="https://www.google.com/favicon.ico" alt="Google">
-            Sign in with Google
-          </button>
-        </div>
-
-        <div class="step" data-step="3">
-          <h2>Choose Default Folder</h2>
-          <p>This folder is used as the fallback for uploads.</p>
-          <div id="folder-list" class="folder-list">
-            <div class="loading">Preparing Google Drive picker...</div>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="discord-app-id" content="%DISCORD_APPLICATION_ID%" />
+    <meta name="setup-auth-required" content="%SETUP_AUTH_REQUIRED%" />
+    <meta name="theme-color" content="#eef4fb" />
+    <title>Discord Drive Uploader - Setup</title>
+    <link rel="stylesheet" href="/css/style.css" />
+  </head>
+  <body>
+    <div class="page-shell">
+      <div class="container">
+        <header class="hero">
+          <div class="hero-copy">
+            <p class="eyebrow">Self-hosted setup</p>
+            <h1>Discord Drive Uploader</h1>
+            <p class="hero-lede">
+              Connect Google Drive, add your Discord bot token, and map channels without fighting a
+              cramped setup screen.
+            </p>
           </div>
-          <p class="info">You can either choose a fallback upload folder directly, or tick the option to create a new <code>default-for-discord</code> folder inside the location you pick.</p>
-        </div>
-
-        <div class="step" data-step="4">
-          <h2>Discord Bot Token</h2>
-          <p>Paste your bot token and continue.</p>
-          <input type="password" id="discord-token" placeholder="Discord Bot Token" class="input" />
-          <div class="info">
-            <small>Get this value from Discord Developer Portal → Bot → Token.</small>
+          <div class="hero-summary">
+            <div class="summary-item">
+              <span class="summary-label">Workflow</span>
+              <strong>Drive auth, bot token, channel links</strong>
+            </div>
+            <div class="summary-item">
+              <span class="summary-label">Display</span>
+              <strong>Automatically follows light and dark mode</strong>
+            </div>
+            <p class="summary-note">This page configures the current self-hosted instance only.</p>
           </div>
-          <button class="btn btn-primary" onclick="saveDiscordToken()">Continue</button>
-        </div>
+        </header>
 
-        <div class="step" data-step="5">
-          <h2>⚙️ Link Servers and Channels</h2>
-          <p>Choose which server and channel you want this bot to monitor, then map each channel to a Google Drive folder.</p>
-          <section class="default-folder-panel" aria-labelledby="default-folder-panel-title">
-            <div class="default-folder-panel-header">
+        <main class="wizard-layout">
+          <aside class="wizard-sidebar" aria-labelledby="setup-checklist-title">
+            <section class="sidebar-panel">
+              <p class="eyebrow">Setup checklist</p>
+              <h2 id="setup-checklist-title">Follow the steps in order</h2>
+              <ol class="step-nav">
+                <li class="step-nav-item active" data-nav-step="2">
+                  <span class="step-nav-number">1</span>
+                  <div>
+                    <strong>Connect Google Drive</strong>
+                    <p>Authorise the Google account that should own the upload folders.</p>
+                  </div>
+                </li>
+                <li class="step-nav-item" data-nav-step="3">
+                  <span class="step-nav-number">2</span>
+                  <div>
+                    <strong>Choose a default folder</strong>
+                    <p>
+                      Set the fallback location for uploads when a channel uses the default route.
+                    </p>
+                  </div>
+                </li>
+                <li class="step-nav-item" data-nav-step="4">
+                  <span class="step-nav-number">3</span>
+                  <div>
+                    <strong>Add the bot token</strong>
+                    <p>Paste the Discord bot token from the Developer Portal.</p>
+                  </div>
+                </li>
+                <li class="step-nav-item" data-nav-step="5">
+                  <span class="step-nav-number">4</span>
+                  <div>
+                    <strong>Link servers and channels</strong>
+                    <p>
+                      Map each Discord channel to either a specific Drive folder or the default
+                      folder.
+                    </p>
+                  </div>
+                </li>
+                <li class="step-nav-item" data-nav-step="6">
+                  <span class="step-nav-number">5</span>
+                  <div>
+                    <strong>Finish setup</strong>
+                    <p>Copy the invite link and start syncing attachments.</p>
+                  </div>
+                </li>
+              </ol>
+            </section>
+
+            <section class="sidebar-panel sidebar-tip-panel">
+              <h3>Before you start</h3>
+              <ul class="sidebar-tips">
+                <li>Keep your Discord bot token ready from the Developer Portal.</li>
+                <li>Choose a Google account that should own the upload folders.</li>
+                <li>
+                  Invite the bot to your server before mapping channels if you want the server list
+                  to load immediately.
+                </li>
+              </ul>
+            </section>
+          </aside>
+
+          <section class="wizard-stage" aria-labelledby="wizard-progress-title">
+            <div class="wizard-progress">
               <div>
-                <h3 id="default-folder-panel-title">Default fallback folder</h3>
-                <p class="info compact-info">Channels explicitly linked to the default folder will upload here.</p>
+                <p class="wizard-progress-label" id="wizard-progress-count">Step 1 of 5</p>
+                <h2 id="wizard-progress-title">Connect Google Drive</h2>
+                <p id="wizard-progress-description">
+                  Start by authorising the Google account that should store uploaded media.
+                </p>
               </div>
+              <span class="mode-pill">Adapts to your device theme</span>
             </div>
-            <div id="current-default-folder" class="picker-inline-summary"></div>
-            <div class="picker-launcher default-folder-actions">
-              <label class="checkbox-option" for="change-default-folder-checkbox">
-                <input type="checkbox" id="change-default-folder-checkbox">
-                <span>Create a <code>default-for-discord</code> folder here for me</span>
-              </label>
-              <p class="info compact-info">If ticked, the folder you choose becomes the parent folder and we will create a new upload folder inside it.</p>
-              <button class="btn btn-secondary picker-button" id="open-change-default-folder-picker" data-default-text="Choose new default folder in Google Drive">
-                Choose new default folder in Google Drive
-              </button>
-              <div id="selected-change-default-folder" class="picker-inline-summary"></div>
-              <button class="btn btn-primary" id="save-default-folder-btn" data-default-text="Save default folder" disabled>
-                Save default folder
-              </button>
-            </div>
-            <p id="default-folder-feedback" class="info"></p>
-          </section>
-          <div class="mapping-form">
-            <div class="form-grid">
-              <div>
-                <label for="guild-selector">Server</label>
-                <select id="guild-selector" class="input"></select>
-              </div>
-              <div>
-                <label for="channel-selector">Channel</label>
-                <select id="channel-selector" class="input"></select>
-              </div>
-              <div>
-                <label for="open-channel-folder-picker">Drive folder</label>
-                <div class="picker-field">
-                  <button class="btn btn-secondary picker-button" id="open-channel-folder-picker" data-default-text="Choose folder in Google Drive">
-                    Choose folder in Google Drive
+
+            <div id="setup-wizard" class="wizard">
+              <div class="step active" data-step="2">
+                <div class="step-header">
+                  <p class="step-kicker">Step 1</p>
+                  <h2>Connect Google Drive</h2>
+                  <p>
+                    Start OAuth and allow Drive folder access so the setup can browse the folders
+                    you want to use.
+                  </p>
+                </div>
+                <section class="task-card task-card-compact">
+                  <div class="card-copy">
+                    <h3>Sign in with the Google account that should store uploads</h3>
+                    <p>
+                      This opens Google's authorisation flow and brings you back here once access is
+                      granted.
+                    </p>
+                  </div>
+                  <button class="btn btn-google" onclick="startGoogleAuth()">
+                    <img src="https://www.google.com/favicon.ico" alt="Google" />
+                    Sign in with Google
                   </button>
-                  <div id="selected-channel-folder" class="picker-inline-summary"></div>
+                </section>
+              </div>
+
+              <div class="step" data-step="3">
+                <div class="step-header">
+                  <p class="step-kicker">Step 2</p>
+                  <h2>Choose Default Folder</h2>
+                  <p>
+                    Pick the fallback Google Drive folder used when a channel relies on the default
+                    upload location.
+                  </p>
+                </div>
+                <section class="task-card">
+                  <div id="folder-list" class="folder-list">
+                    <div class="loading">Preparing Google Drive picker...</div>
+                  </div>
+                  <p class="info">
+                    You can either choose a fallback upload folder directly, or tick the option to
+                    create a new <code>default-for-discord</code> folder inside the location you
+                    pick.
+                  </p>
+                  <div class="step-actions" id="folder-step-actions"></div>
+                </section>
+              </div>
+
+              <div class="step" data-step="4">
+                <div class="step-header">
+                  <p class="step-kicker">Step 3</p>
+                  <h2>Discord Bot Token</h2>
+                  <p>
+                    Paste the bot token from your Discord application so the uploader can connect to
+                    your servers.
+                  </p>
+                </div>
+                <section class="task-card">
+                  <label class="field-label" for="discord-token">Discord bot token</label>
+                  <input
+                    type="password"
+                    id="discord-token"
+                    placeholder="Paste Discord Bot Token"
+                    class="input"
+                  />
+                  <div class="info">
+                    <small>Find this in Discord Developer Portal -> Bot -> Token.</small>
+                  </div>
+                  <div class="step-actions">
+                    <button class="btn btn-primary" onclick="saveDiscordToken()">Continue</button>
+                  </div>
+                </section>
+              </div>
+
+              <div class="step" data-step="5">
+                <div class="step-header">
+                  <p class="step-kicker">Step 4</p>
+                  <h2>Link Servers and Channels</h2>
+                  <p>
+                    Choose the Discord channels this bot should monitor, then decide where each
+                    channel should upload in Google Drive.
+                  </p>
+                </div>
+
+                <div class="mapping-layout">
+                  <section
+                    class="task-card default-folder-panel"
+                    aria-labelledby="default-folder-panel-title"
+                  >
+                    <div class="card-copy">
+                      <h3 id="default-folder-panel-title">Default fallback folder</h3>
+                      <p class="info compact-info">
+                        Channels explicitly linked to the default folder will upload here.
+                      </p>
+                    </div>
+                    <div id="current-default-folder" class="picker-inline-summary"></div>
+                    <div class="picker-launcher default-folder-actions">
+                      <label class="checkbox-option" for="change-default-folder-checkbox">
+                        <input type="checkbox" id="change-default-folder-checkbox" />
+                        <span>Create a <code>default-for-discord</code> folder here for me</span>
+                      </label>
+                      <p class="info compact-info">
+                        If ticked, the folder you choose becomes the parent folder and we will
+                        create a new upload folder inside it.
+                      </p>
+                      <button
+                        class="btn btn-secondary picker-button"
+                        id="open-change-default-folder-picker"
+                        data-default-text="Choose new default folder in Google Drive"
+                      >
+                        Choose new default folder in Google Drive
+                      </button>
+                      <div id="selected-change-default-folder" class="picker-inline-summary"></div>
+                      <button
+                        class="btn btn-primary"
+                        id="save-default-folder-btn"
+                        data-default-text="Save default folder"
+                        disabled
+                      >
+                        Save default folder
+                      </button>
+                    </div>
+                    <p id="default-folder-feedback" class="info feedback-message"></p>
+                  </section>
+
+                  <section class="task-card mapping-form" aria-labelledby="channel-mapping-title">
+                    <div class="card-copy">
+                      <h3 id="channel-mapping-title">Add a new channel link</h3>
+                      <p>
+                        Pick a server and channel, then link it to a specific folder or to the
+                        default folder above.
+                      </p>
+                    </div>
+                    <div class="form-grid">
+                      <div>
+                        <label class="field-label" for="guild-selector">Server</label>
+                        <select id="guild-selector" class="input"></select>
+                      </div>
+                      <div>
+                        <label class="field-label" for="channel-selector">Channel</label>
+                        <select id="channel-selector" class="input"></select>
+                      </div>
+                      <div>
+                        <label class="field-label" for="open-channel-folder-picker"
+                          >Drive folder</label
+                        >
+                        <div class="picker-field">
+                          <button
+                            class="btn btn-secondary picker-button"
+                            id="open-channel-folder-picker"
+                            data-default-text="Choose folder in Google Drive"
+                          >
+                            Choose folder in Google Drive
+                          </button>
+                          <div id="selected-channel-folder" class="picker-inline-summary"></div>
+                        </div>
+                      </div>
+                    </div>
+                    <div class="link-channel-actions">
+                      <button class="btn btn-primary" id="link-channel-btn">
+                        Link channel to folder
+                      </button>
+                      <button class="btn btn-secondary" id="link-channel-default-btn">
+                        Link channel to default folder
+                      </button>
+                    </div>
+                    <p class="info">You can add as many channel mappings as you want.</p>
+                    <p id="link-feedback" class="info feedback-message"></p>
+                  </section>
+
+                  <section class="task-card task-card-wide" aria-labelledby="channel-links-title">
+                    <div class="list-header">
+                      <div class="card-copy">
+                        <h3 id="channel-links-title">Active channel links</h3>
+                        <p>
+                          Review current mappings, pause syncing temporarily, or remove entries you
+                          no longer need.
+                        </p>
+                      </div>
+                      <button class="btn btn-primary" onclick="nextStep()">Continue</button>
+                    </div>
+                    <div id="channel-links-list" class="mapping-list"></div>
+                  </section>
                 </div>
               </div>
-            </div>
-            <div class="link-channel-actions">
-              <button class="btn btn-primary" id="link-channel-btn">Link channel to folder</button>
-              <button class="btn btn-secondary" id="link-channel-default-btn">Link channel to default folder</button>
-            </div>
-            <p class="info">You can add as many channel mappings as you want.</p>
-            <h3 style="margin-top: 1.5rem;">Active channel links</h3>
-            <div id="channel-links-list" class="mapping-list"></div>
-            <button class="btn btn-primary" onclick="nextStep()">Continue</button>
-          </div>
-          <p id="link-feedback" class="info"></p>
-        </div>
 
-        <div class="step" data-step="6">
-          <h2>🎉 Setup Complete</h2>
-          <p id="setup-status">Finalising setup...</p>
-          <h3 style="margin-top: 2rem;">Invite the Bot</h3>
-          <div class="invite-link">
-            <input type="text" id="bot-invite" readonly class="input">
-            <button class="btn btn-secondary" onclick="copyInviteLink(event)">Copy</button>
-          </div>
-          <p class="info">Use the Invite link above, add the bot to your server, then post photos in mapped channels to start syncing.</p>
-        </div>
+              <div class="step" data-step="6">
+                <div class="step-header">
+                  <p class="step-kicker">Step 5</p>
+                  <h2>Setup Complete</h2>
+                  <p>
+                    Your uploader is configured. Invite the bot to Discord and start posting in the
+                    channels you linked.
+                  </p>
+                </div>
+
+                <section class="task-card">
+                  <p id="setup-status">Finalising setup...</p>
+                  <div class="invite-panel">
+                    <div class="card-copy">
+                      <h3>Invite the bot</h3>
+                      <p>
+                        Use this invite to add the bot to your server with the permissions it needs
+                        to sync attachments.
+                      </p>
+                    </div>
+                    <div class="invite-link">
+                      <input type="text" id="bot-invite" readonly class="input" />
+                      <button class="btn btn-secondary" onclick="copyInviteLink(event)">
+                        Copy
+                      </button>
+                    </div>
+                  </div>
+                  <p class="info">
+                    After inviting the bot, post photos or videos in a mapped channel and the
+                    uploader will move them into the correct Google Drive folder automatically.
+                  </p>
+                </section>
+              </div>
+            </div>
+
+            <div class="error-message" id="error-message"></div>
+          </section>
+        </main>
       </div>
+    </div>
 
-      <div class="error-message" id="error-message"></div>
-    </main>
-
-    <footer>
-      <p>Setup and configuration for this self-hosted instance.</p>
-    </footer>
-  </div>
-
-  <script src="https://apis.google.com/js/api.js"></script>
-  <script src="/js/setup.js"></script>
-</body>
+    <script src="https://apis.google.com/js/api.js"></script>
+    <script src="/js/setup.js"></script>
+  </body>
 </html>

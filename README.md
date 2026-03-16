@@ -17,6 +17,7 @@ Self-hosted Discord bot and setup UI for uploading photos and videos from Discor
 - Per-server and per-channel folder mapping
 - Optional default `default-for-discord` folder creation during setup
 - In-place default folder changes from the linked folders page
+- Responsive setup UI with automatic light/dark theme support
 - Markdown upload confirmations with folder links
 - File-backed configuration storage
 - Docker-first local and self-hosted setup
@@ -243,18 +244,20 @@ Successful uploads respond in Discord with a folder link and filename preview.
 Single file:
 
 ```md
-Uploaded to [_From Discord/2026-03-15](https://drive.google.com/drive/folders/your-folder-id).
+Uploaded to [\_From Discord/2026-03-15](https://drive.google.com/drive/folders/your-folder-id).
 
 File name:
+
 - Alice Example - 12-54-11.png
 ```
 
 Multiple files:
 
 ```md
-Uploaded to [_From Discord/2026-03-15](https://drive.google.com/drive/folders/your-folder-id).
+Uploaded to [\_From Discord/2026-03-15](https://drive.google.com/drive/folders/your-folder-id).
 
 File names starting from:
+
 - Alice Example - 12-42-02.jpg
 ```
 
