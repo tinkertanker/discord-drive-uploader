@@ -2,7 +2,7 @@ import { Client, GatewayIntentBits, REST, Routes } from 'discord.js';
 import { ConfigStore } from '../services/config-store.js';
 import { GoogleAuthService } from '../services/google-auth.js';
 import { GoogleDriveService } from '../services/google-drive.js';
-import { generateFileName, reserveDuplicateFilename } from '../utils/file-namer.js';
+import { formatUploadDate, generateFileName, reserveDuplicateFilename } from '../utils/file-namer.js';
 import { formatUploadStatusMessage } from '../utils/upload-status.js';
 import { createLogger } from '../utils/logger.js';
 import fetch from 'node-fetch';
@@ -99,7 +99,11 @@ export class DiscordBot {
 
     logger.info(`Processing ${supportedAttachments.length} attachments from channel ${channel.name}`);
 
-    const { driveService, existingFilenames } = await this.prepareDriveUploadContext(channelConfig.driveFolderId);
+    const uploadDate = formatUploadDate(message.createdAt);
+    const { driveService, uploadFolder, existingFilenames } = await this.prepareDriveUploadContext(
+      channelConfig.driveFolderId,
+      uploadDate
+    );
     const reservedFilenames = supportedAttachments.map((attachment) => {
       const baseFilename = generateFileName(
         attachment.name,
@@ -112,7 +116,7 @@ export class DiscordBot {
     });
 
     const uploadTasks = supportedAttachments.map((attachment, index) =>
-      this.createUploadTask(attachment, reservedFilenames[index], channelConfig.driveFolderId, driveService)
+      this.createUploadTask(attachment, reservedFilenames[index], uploadFolder.id, driveService)
     );
 
     // Send initial response
@@ -142,8 +146,8 @@ export class DiscordBot {
       responseText = formatUploadStatusMessage({
         successfulCount: successful,
         totalCount: supportedAttachments.length,
-        folderName: channelConfig.folderName,
-        folderId: channelConfig.driveFolderId,
+        folderName: `${channelConfig.folderName}/${uploadFolder.name}`,
+        folderId: uploadFolder.id,
         uploadedFilenames
       });
     } else if (failed === supportedAttachments.length) {
@@ -152,8 +156,8 @@ export class DiscordBot {
       responseText = formatUploadStatusMessage({
         successfulCount: successful,
         totalCount: supportedAttachments.length,
-        folderName: channelConfig.folderName,
-        folderId: channelConfig.driveFolderId,
+        folderName: `${channelConfig.folderName}/${uploadFolder.name}`,
+        folderId: uploadFolder.id,
         uploadedFilenames
       });
     }
@@ -178,7 +182,7 @@ export class DiscordBot {
     }
   }
 
-  async prepareDriveUploadContext(folderId) {
+  async prepareDriveUploadContext(folderId, uploadDate) {
     const googleTokens = await this.configStore.getGoogleTokens();
     if (!googleTokens) {
       throw new Error('Google Drive not configured');
@@ -194,10 +198,12 @@ export class DiscordBot {
     }
 
     const driveService = new GoogleDriveService(authService.getAuthClient());
-    const existingFiles = await driveService.getFilesByFolder(folderId);
+    const uploadFolder = await driveService.ensureFolder(uploadDate, folderId);
+    const existingFiles = await driveService.getFilesByFolder(uploadFolder.id);
 
     return {
       driveService,
+      uploadFolder,
       existingFilenames: existingFiles.map((file) => file.name)
     };
   }

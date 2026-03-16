@@ -64,4 +64,44 @@ describe('GoogleDriveService', () => {
     }));
     expect(files).toEqual([{ id: 'file123', name: 'photo.png' }]);
   });
+
+  test('reuses an existing child folder when ensuring a folder', async () => {
+    mockDriveFiles.list.mockResolvedValueOnce({
+      data: {
+        files: [{ id: 'folder456', name: '2026-03-16', parents: ['parent123'] }]
+      }
+    });
+
+    const folder = await driveService.ensureFolder('2026-03-16', 'parent123');
+
+    expect(mockDriveFiles.list).toHaveBeenCalledWith(expect.objectContaining({
+      q: 'mimeType=\'application/vnd.google-apps.folder\' and trashed=false and name=\'2026-03-16\' and \'parent123\' in parents'
+    }));
+    expect(mockDriveFiles.create).not.toHaveBeenCalled();
+    expect(folder).toEqual({ id: 'folder456', name: '2026-03-16', parents: ['parent123'] });
+  });
+
+  test('creates a child folder when ensuring a missing folder', async () => {
+    mockDriveFiles.list.mockResolvedValueOnce({
+      data: {
+        files: []
+      }
+    });
+    mockDriveFiles.create.mockResolvedValueOnce({
+      data: { id: 'folder789', name: '2026-03-16' }
+    });
+
+    const folder = await driveService.ensureFolder('2026-03-16', 'parent123');
+
+    expect(mockDriveFiles.create).toHaveBeenCalledWith(expect.objectContaining({
+      resource: {
+        name: '2026-03-16',
+        mimeType: 'application/vnd.google-apps.folder',
+        parents: ['parent123']
+      },
+      fields: 'id, name',
+      supportsAllDrives: true
+    }));
+    expect(folder).toEqual({ id: 'folder789', name: '2026-03-16' });
+  });
 });

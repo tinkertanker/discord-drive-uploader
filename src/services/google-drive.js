@@ -85,6 +85,15 @@ export class GoogleDriveService {
     }
   }
 
+  async ensureFolder(name, parentId = null) {
+    const existingFolder = await this.findFolderByName(name, parentId);
+    if (existingFolder) {
+      return existingFolder;
+    }
+
+    return this.createFolder(name, parentId);
+  }
+
   async uploadFile(fileBuffer, fileName, folderId, mimeType) {
     try {
       const fileMetadata = {

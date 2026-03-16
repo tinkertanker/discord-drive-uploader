@@ -2,15 +2,23 @@ export function generateFileName(originalName, messageContent = '', timestamp = 
   const nameParts = originalName.split('.');
   const extension = nameParts.length > 1 ? nameParts.pop().toLowerCase() : '';
 
-  const date = timestamp.toISOString().slice(0, 16).replace('T', '-').replace(/:/g, '-');
+  const time = formatUploadTime(timestamp);
   const safeAuthor = sanitizeForFilename(authorName) || 'Unknown user';
   const safeComment = sanitizeForFilename(messageContent, 100);
 
   const baseFileName = safeComment
-    ? `${date} - ${safeAuthor} - ${safeComment}`
-    : `${date} - ${safeAuthor}`;
+    ? `${safeAuthor} - ${time} - ${safeComment}`
+    : `${safeAuthor} - ${time}`;
 
   return extension ? `${baseFileName}.${extension}` : baseFileName;
+}
+
+export function formatUploadDate(timestamp = new Date()) {
+  return timestamp.toISOString().slice(0, 10);
+}
+
+export function formatUploadTime(timestamp = new Date()) {
+  return timestamp.toISOString().slice(11, 19).replace(/:/g, '-');
 }
 
 export function sanitizeForFilename(text, maxLength = 80) {
@@ -37,19 +45,19 @@ export function handleDuplicateFilename(filename, existingFilenames) {
   if (!existingFilenames.includes(filename)) {
     return filename;
   }
-  
+
   const nameParts = filename.split('.');
   const extension = nameParts.pop();
   const baseName = nameParts.join('.');
-  
+
   let counter = 1;
   let newFilename;
-  
+
   do {
     newFilename = `${baseName}_${counter}.${extension}`;
     counter++;
   } while (existingFilenames.includes(newFilename));
-  
+
   return newFilename;
 }
 

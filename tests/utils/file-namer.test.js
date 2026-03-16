@@ -1,4 +1,6 @@
 import {
+  formatUploadDate,
+  formatUploadTime,
   generateFileName,
   sanitizeForFilename,
   handleDuplicateFilename,
@@ -46,14 +48,22 @@ describe('File Namer Utilities', () => {
   describe('generateFileName', () => {
     const fixedDate = new Date('2025-05-23T14:30:45.000Z');
 
+    test('formats the upload date for Drive folders', () => {
+      expect(formatUploadDate(fixedDate)).toBe('2025-05-23');
+    });
+
+    test('formats the upload time for file names', () => {
+      expect(formatUploadTime(fixedDate)).toBe('14-30-45');
+    });
+
     test('generates filename with author and message content', () => {
       const result = generateFileName('photo.jpg', 'Check this out!', fixedDate, 'Alice Example');
-      expect(result).toBe('2025-05-23-14-30 - Alice Example - Check this out!.jpg');
+      expect(result).toBe('Alice Example - 14-30-45 - Check this out!.jpg');
     });
 
     test('generates filename without message content', () => {
       const result = generateFileName('photo.jpg', '', fixedDate, 'Alice Example');
-      expect(result).toBe('2025-05-23-14-30 - Alice Example.jpg');
+      expect(result).toBe('Alice Example - 14-30-45.jpg');
     });
 
     test('handles different file extensions', () => {
@@ -65,7 +75,7 @@ describe('File Namer Utilities', () => {
     test('truncates comment text to first 100 characters', () => {
       const longMessage = 'a'.repeat(150);
       const result = generateFileName('photo.jpg', longMessage, fixedDate, 'Alice');
-      expect(result).toBe(`2025-05-23-14-30 - Alice - ${'a'.repeat(100)}.jpg`);
+      expect(result).toBe(`Alice - 14-30-45 - ${'a'.repeat(100)}.jpg`);
     });
 
     test('handles files with multiple dots', () => {
@@ -76,7 +86,7 @@ describe('File Namer Utilities', () => {
 
     test('falls back to Unknown user when author name is missing', () => {
       const result = generateFileName('photo.jpg', 'hello', fixedDate, '');
-      expect(result).toBe('2025-05-23-14-30 - Unknown user - hello.jpg');
+      expect(result).toBe('Unknown user - 14-30-45 - hello.jpg');
     });
   });
 
