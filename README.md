@@ -24,27 +24,60 @@ Self-hosted Discord bot and setup UI for uploading photos and videos from Discor
 
 ### Google Cloud
 
-1. Create a Google Cloud project.
-2. Enable the Google Drive API.
-3. Create a web OAuth client.
-4. Add authorised redirect URIs:
-   - `http://localhost:3000/auth/google/callback`
-   - `https://your-domain.example/auth/google/callback`
-5. Create a browser API key for Google Picker.
-6. Save these values:
-   - `GOOGLE_CLIENT_ID`
-   - `GOOGLE_CLIENT_SECRET`
-   - `GOOGLE_API_KEY`
+1. Go to [Google Cloud Console](https://console.cloud.google.com/).
+2. Create a new project or select an existing one.
+3. Open `APIs & Services` -> `Library`.
+4. Enable the `Google Drive API`.
+5. Open `APIs & Services` -> `OAuth consent screen`.
+6. Configure the consent screen if Google Cloud asks you to do so first.
+   - For internal-only use, configure it for your organisation.
+   - For external use, add the appropriate test users during development.
+7. Open `APIs & Services` -> `Credentials`.
+8. Create an `OAuth client ID`.
+   - Application type: `Web application`
+   - Add authorised redirect URIs:
+     - `http://localhost:3000/auth/google/callback`
+     - `https://your-domain.example/auth/google/callback`
+9. From that OAuth client, copy:
+   - `Client ID` -> `GOOGLE_CLIENT_ID`
+   - `Client secret` -> `GOOGLE_CLIENT_SECRET`
+10. Still in `Credentials`, create an `API key` for Google Picker.
+    - This becomes `GOOGLE_API_KEY`
+    - Restrict it to your site origins if you are hosting the app publicly
+11. Set `GOOGLE_REDIRECT_URI` to the exact callback URL you want this app to use.
+    - Local example: `http://localhost:3000/auth/google/callback`
+    - Hosted example: `https://your-domain.example/auth/google/callback`
 
 ### Discord
 
-1. Create a Discord application in the [Discord Developer Portal](https://discord.com/developers/applications).
-2. Create a bot for that application.
-3. Save these values:
-   - `DISCORD_APPLICATION_ID`
-   - `DISCORD_PUBLIC_KEY`
-   - `DISCORD_BOT_TOKEN`
-4. Enable `Message Content Intent` for the bot.
+1. Go to the [Discord Developer Portal](https://discord.com/developers/applications).
+2. Click `New Application` and give it a name.
+3. In `General Information`, copy:
+   - `Application ID` -> `DISCORD_APPLICATION_ID`
+   - `Public Key` -> `DISCORD_PUBLIC_KEY`
+4. Open the `Bot` tab and create a bot user if one does not already exist.
+5. In the `Bot` tab:
+   - Use `Reset Token` or `View Token` to get the bot token
+   - Paste that token into the setup UI later when prompted
+6. Under `Privileged Gateway Intents`, enable:
+   - `Message Content Intent`
+7. Under `Bot Permissions` in the invite flow, make sure the bot can be granted:
+   - `View Channels`
+   - `Send Messages`
+   - `Read Message History`
+   - `Attach Files`
+   - `Use Slash Commands`
+8. In `OAuth2` -> `URL Generator`, create an invite URL with:
+   - Scopes:
+     - `bot`
+     - `applications.commands`
+   - Bot permissions:
+     - `View Channels`
+     - `Send Messages`
+     - `Read Message History`
+     - `Attach Files`
+     - `Use Slash Commands`
+9. Open the generated URL and invite the bot to the Discord server you want to sync.
 
 ## Environment Variables
 
@@ -66,6 +99,11 @@ Optional:
 - `CONFIG_STORE_PATH`
   Overrides where configuration is stored. Defaults to `/data/bot-config.json`.
 
+Not set in `.env`:
+
+- `DISCORD_BOT_TOKEN`
+  This project currently stores the bot token through the setup UI rather than loading it from `.env`.
+
 Copy the example file and fill in your values:
 
 ```bash
@@ -74,10 +112,36 @@ cp .env.example .env
 
 ## Running the App
 
+### Docker
+
 Start the app with Docker Compose:
 
 ```bash
 docker compose up --build -d
+```
+
+### Non-Docker
+
+You can also run the app directly with Node.js.
+
+Requirements:
+
+- Node.js 20+
+- npm
+
+Commands:
+
+```bash
+npm install
+cp .env.example .env
+# fill in .env
+npm run dev
+```
+
+For a non-watch production-style run:
+
+```bash
+npm start
 ```
 
 Then open the app in your browser, usually at:
@@ -99,6 +163,8 @@ Complete the browser setup in this order:
 If `SETUP_API_TOKEN` is configured, enter it when prompted before saving configuration.
 
 If `ALLOWED_EMAIL_DOMAINS` is configured, only Google accounts from those domains can complete setup.
+
+The setup wizard will also ask for the Discord bot token. That value comes from the `Bot` tab in the Discord Developer Portal, not from the `.env` file.
 
 ## Discord Bot Permissions
 
@@ -209,17 +275,20 @@ npm test
 
 - Make sure `GOOGLE_REDIRECT_URI` exactly matches an authorised redirect URI in Google Cloud
 - The callback path must be `/auth/google/callback`
+- The value in `.env`, the Google OAuth client settings, and the URL you actually open in the browser all need to agree
 
 ### Bot cannot see messages
 
 - Confirm `Message Content Intent` is enabled in the Discord Developer Portal
 - Confirm the bot has been invited with the required permissions
 - Confirm the bot token in setup is valid
+- Confirm the invite URL included both `bot` and `applications.commands` scopes
 
 ### Google setup succeeds but folders do not load
 
 - Confirm the Google Drive API is enabled
 - Confirm the browser API key for Google Picker is configured as `GOOGLE_API_KEY`
+- Confirm the API key is allowed for the origin you are using
 - Confirm the signed-in Google account is allowed if `ALLOWED_EMAIL_DOMAINS` is set
 
 ### Files are not uploading
