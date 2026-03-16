@@ -109,13 +109,7 @@ export class ConfigStore {
         }
         return channelConfig;
       }
-
-      const defaultFolder = await this.getDefaultFolder();
-      return defaultFolder ? {
-        driveFolderId: defaultFolder.id,
-        folderName: defaultFolder.name,
-        configuredAt: defaultFolder.configuredAt
-      } : null;
+      return null;
     } catch (error) {
       logger.error('Failed to get channel folder:', error);
       return null;

@@ -114,6 +114,14 @@ describe('ConfigStore', () => {
       expect(result).toEqual(guildConfig.channels.channel456);
     });
 
+    test('does not fall back to the default folder for unmapped channels', async () => {
+      mockStore.get
+        .mockResolvedValueOnce({ channels: {} });
+
+      const result = await configStore.getChannelFolder('guild123', 'unmapped-channel');
+      expect(result).toBeNull();
+    });
+
     test('stores the default folder in the backing store', async () => {
       await configStore.setDefaultFolder('folder123', 'Uploads');
 
