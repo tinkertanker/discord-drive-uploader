@@ -77,6 +77,20 @@ export class ConfigStore {
   }
 
   async setChannelFolder(guildId, channelId, folderId, folderName, enabled = true) {
+    const useDefault = folderId == null;
+    const normalizedFolderId = typeof folderId === 'string' ? folderId.trim() : folderId;
+    const normalizedFolderName = typeof folderName === 'string' ? folderName.trim() : folderName;
+
+    if (!useDefault) {
+      if (typeof normalizedFolderId !== 'string' || !normalizedFolderId) {
+        throw new Error('Channel folder ID must be a non-empty string');
+      }
+
+      if (typeof normalizedFolderName !== 'string' || !normalizedFolderName) {
+        throw new Error('Channel folder name is required when specifying a folder');
+      }
+    }
+
     try {
       const guildConfig = await this.getGuildConfig(guildId);
 
@@ -84,15 +98,14 @@ export class ConfigStore {
         guildConfig.channels = {};
       }
 
-      const useDefault = !folderId;
       guildConfig.channels[channelId] = {
-        ...(useDefault ? { useDefault: true } : { driveFolderId: folderId, folderName: folderName }),
+        ...(useDefault ? { useDefault: true } : { driveFolderId: normalizedFolderId, folderName: normalizedFolderName }),
         configuredAt: Date.now(),
         enabled
       };
 
       await this.setGuildConfig(guildId, guildConfig);
-      logger.info(`Set folder ${useDefault ? '(default)' : folderName} for channel ${channelId} in guild ${guildId}`);
+      logger.info(`Set folder ${useDefault ? '(default)' : normalizedFolderName} for channel ${channelId} in guild ${guildId}`);
     } catch (error) {
       logger.error('Failed to set channel folder:', error);
       throw new Error('Failed to configure channel folder');

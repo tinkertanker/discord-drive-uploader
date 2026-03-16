@@ -115,6 +115,14 @@ describe('ConfigStore', () => {
       });
     });
 
+    test('rejects blank folder IDs instead of treating them as the default folder', async () => {
+      await expect(
+        configStore.setChannelFolder('guild123', 'channel456', '   ', 'My Folder')
+      ).rejects.toThrow('Channel folder ID must be a non-empty string');
+
+      expect(mockStore.setJSON).not.toHaveBeenCalled();
+    });
+
     test('gets channel folder configuration', async () => {
       const guildConfig = {
         channels: {
