@@ -5,26 +5,18 @@ const SETUP_STEP_ORDER = [2, 3, 4, 5, 6];
 const STEP_METADATA = {
   2: {
     title: 'Connect Google Drive',
-    description: 'Start by authorising the Google account that should store uploaded media.',
   },
   3: {
     title: 'Choose a default folder',
-    description:
-      'Set the fallback Google Drive location used when a channel uploads to the default route.',
   },
   4: {
     title: 'Add the bot token',
-    description: 'Paste the Discord bot token so the uploader can load your servers and channels.',
   },
   5: {
     title: 'Link servers and channels',
-    description:
-      'Map each channel to a specific Drive folder or to the default folder for simpler routing.',
   },
   6: {
     title: 'Finish setup',
-    description:
-      'Copy the invite link, add the bot to Discord, and start posting in your mapped channels.',
   },
 };
 const THEME_META_COLORS = {
@@ -129,7 +121,6 @@ function updateWizardProgress(step) {
   const metadata = STEP_METADATA[step];
   const countEl = document.getElementById('wizard-progress-count');
   const titleEl = document.getElementById('wizard-progress-title');
-  const descriptionEl = document.getElementById('wizard-progress-description');
 
   if (countEl && index >= 0) {
     countEl.textContent = `Step ${index + 1} of ${SETUP_STEP_ORDER.length}`;
@@ -137,10 +128,6 @@ function updateWizardProgress(step) {
 
   if (titleEl && metadata?.title) {
     titleEl.textContent = metadata.title;
-  }
-
-  if (descriptionEl && metadata?.description) {
-    descriptionEl.textContent = metadata.description;
   }
 
   document.querySelectorAll('[data-nav-step]').forEach((item) => {
