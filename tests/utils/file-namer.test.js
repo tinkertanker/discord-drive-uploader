@@ -1,5 +1,8 @@
 import {
+  formatUploadDate,
+  formatUploadTime,
   generateFileName,
+  getUploadTimeZone,
   sanitizeForFilename,
   handleDuplicateFilename,
   reserveDuplicateFilename
@@ -45,38 +48,57 @@ describe('File Namer Utilities', () => {
 
   describe('generateFileName', () => {
     const fixedDate = new Date('2025-05-23T14:30:45.000Z');
+    const boundaryDate = new Date('2025-05-23T23:30:45.000Z');
+
+    test('formats the upload date for Drive folders', () => {
+      expect(formatUploadDate(fixedDate, 'UTC')).toBe('2025-05-23');
+    });
+
+    test('formats the upload time for file names', () => {
+      expect(formatUploadTime(fixedDate, 'UTC')).toBe('14-30-45');
+    });
+
+    test('uses the supplied timezone for folder dates and file times', () => {
+      expect(formatUploadDate(boundaryDate, 'Asia/Singapore')).toBe('2025-05-24');
+      expect(formatUploadTime(boundaryDate, 'Asia/Singapore')).toBe('07-30-45');
+    });
 
     test('generates filename with author and message content', () => {
-      const result = generateFileName('photo.jpg', 'Check this out!', fixedDate, 'Alice Example');
-      expect(result).toBe('2025-05-23-14-30 - Alice Example - Check this out!.jpg');
+      const result = generateFileName('photo.jpg', 'Check this out!', fixedDate, 'Alice Example', 'UTC');
+      expect(result).toBe('Alice Example - 14-30-45 - Check this out!.jpg');
     });
 
     test('generates filename without message content', () => {
-      const result = generateFileName('photo.jpg', '', fixedDate, 'Alice Example');
-      expect(result).toBe('2025-05-23-14-30 - Alice Example.jpg');
+      const result = generateFileName('photo.jpg', '', fixedDate, 'Alice Example', 'UTC');
+      expect(result).toBe('Alice Example - 14-30-45.jpg');
     });
 
     test('handles different file extensions', () => {
-      expect(generateFileName('video.mp4', 'test', fixedDate, 'Alice')).toContain('.mp4');
-      expect(generateFileName('image.PNG', 'test', fixedDate, 'Alice')).toContain('.png');
-      expect(generateFileName('file.webm', 'test', fixedDate, 'Alice')).toContain('.webm');
+      expect(generateFileName('video.mp4', 'test', fixedDate, 'Alice', 'UTC')).toContain('.mp4');
+      expect(generateFileName('image.PNG', 'test', fixedDate, 'Alice', 'UTC')).toContain('.png');
+      expect(generateFileName('file.webm', 'test', fixedDate, 'Alice', 'UTC')).toContain('.webm');
     });
 
     test('truncates comment text to first 100 characters', () => {
       const longMessage = 'a'.repeat(150);
-      const result = generateFileName('photo.jpg', longMessage, fixedDate, 'Alice');
-      expect(result).toBe(`2025-05-23-14-30 - Alice - ${'a'.repeat(100)}.jpg`);
+      const result = generateFileName('photo.jpg', longMessage, fixedDate, 'Alice', 'UTC');
+      expect(result).toBe(`Alice - 14-30-45 - ${'a'.repeat(100)}.jpg`);
     });
 
     test('handles files with multiple dots', () => {
-      const result = generateFileName('my.photo.backup.jpg', 'test', fixedDate, 'Alice');
+      const result = generateFileName('my.photo.backup.jpg', 'test', fixedDate, 'Alice', 'UTC');
       expect(result).toContain('.jpg');
       expect(result).toContain('test');
     });
 
     test('falls back to Unknown user when author name is missing', () => {
-      const result = generateFileName('photo.jpg', 'hello', fixedDate, '');
-      expect(result).toBe('2025-05-23-14-30 - Unknown user - hello.jpg');
+      const result = generateFileName('photo.jpg', 'hello', fixedDate, '', 'UTC');
+      expect(result).toBe('Unknown user - 14-30-45 - hello.jpg');
+    });
+
+    test('uses the runtime timezone by default', () => {
+      expect(typeof getUploadTimeZone()).toBe('string');
+      expect(getUploadTimeZone().length).toBeGreaterThan(0);
     });
   });
 

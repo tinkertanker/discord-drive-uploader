@@ -7,6 +7,7 @@ const logger = createLogger('GoogleDrive');
 export class GoogleDriveService {
   constructor(authClient) {
     this.drive = google.drive({ version: 'v3', auth: authClient });
+    this.pendingFolderEnsures = new Map();
   }
 
   escapeDriveQueryValue(value) {
@@ -82,6 +83,31 @@ export class GoogleDriveService {
     } catch (error) {
       logger.error('Failed to find folder by name:', error);
       throw new Error('Failed to search Google Drive folders');
+    }
+  }
+
+  async ensureFolder(name, parentId = null) {
+    const folderKey = `${parentId || 'root'}:${name}`;
+    const pendingEnsure = this.pendingFolderEnsures.get(folderKey);
+    if (pendingEnsure) {
+      return pendingEnsure;
+    }
+
+    const ensurePromise = (async () => {
+      const existingFolder = await this.findFolderByName(name, parentId);
+      if (existingFolder) {
+        return existingFolder;
+      }
+
+      return this.createFolder(name, parentId);
+    })();
+
+    this.pendingFolderEnsures.set(folderKey, ensurePromise);
+
+    try {
+      return await ensurePromise;
+    } finally {
+      this.pendingFolderEnsures.delete(folderKey);
     }
   }
 

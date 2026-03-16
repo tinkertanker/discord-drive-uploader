@@ -9,13 +9,13 @@ describe('Upload status utilities', () => {
     expect(formatUploadStatusMessage({
       successfulCount: 1,
       totalCount: 1,
-      folderName: '_From Discord',
+      folderName: '_From Discord/2026-03-15',
       folderId: 'folder123',
-      uploadedFilenames: ['2026-03-15-12-54 - t.png']
+      uploadedFilenames: ['Alice Example - 12-54-11.png']
     })).toBe(
-      'Uploaded to [_From Discord](https://drive.google.com/drive/folders/folder123).\n\n' +
+      'Uploaded to [_From Discord/2026-03-15](https://drive.google.com/drive/folders/folder123).\n\n' +
       'File name:\n' +
-      '- 2026-03-15-12-54 - t.png'
+      '- Alice Example - 12-54-11.png'
     );
   });
 
@@ -23,13 +23,13 @@ describe('Upload status utilities', () => {
     expect(formatUploadStatusMessage({
       successfulCount: 3,
       totalCount: 3,
-      folderName: '_From Discord',
+      folderName: '_From Discord/2026-03-15',
       folderId: 'folder123',
-      uploadedFilenames: ['2026-03-15-12-42 - jiachenyee.jpg', '2026-03-15-12-42 - jiachenyee_1.jpg']
+      uploadedFilenames: ['Alice Example - 12-42-02.jpg', 'Alice Example - 12-42-02_1.jpg']
     })).toBe(
-      'Uploaded to [_From Discord](https://drive.google.com/drive/folders/folder123).\n\n' +
+      'Uploaded to [_From Discord/2026-03-15](https://drive.google.com/drive/folders/folder123).\n\n' +
       'File names starting from:\n' +
-      '- 2026-03-15-12-42 - jiachenyee.jpg'
+      '- Alice Example - 12-42-02.jpg'
     );
   });
 
@@ -37,13 +37,13 @@ describe('Upload status utilities', () => {
     expect(formatUploadStatusMessage({
       successfulCount: 2,
       totalCount: 3,
-      folderName: '_From Discord',
+      folderName: '_From Discord/2026-03-15',
       folderId: 'folder123',
-      uploadedFilenames: ['2026-03-15-12-42 - jiachenyee.jpg']
+      uploadedFilenames: ['Alice Example - 12-42-02.jpg']
     })).toBe(
-      'Uploaded 2/3 files to [_From Discord](https://drive.google.com/drive/folders/folder123).\n\n' +
+      'Uploaded 2/3 files to [_From Discord/2026-03-15](https://drive.google.com/drive/folders/folder123).\n\n' +
       'File name:\n' +
-      '- 2026-03-15-12-42 - jiachenyee.jpg'
+      '- Alice Example - 12-42-02.jpg'
     );
   });
 
@@ -51,7 +51,7 @@ describe('Upload status utilities', () => {
     expect(formatUploadStatusMessage({
       successfulCount: 0,
       totalCount: 2,
-      folderName: '_From Discord',
+      folderName: '_From Discord/2026-03-15',
       folderId: 'folder123',
       uploadedFilenames: []
     })).toBe('❌ Upload failed');

@@ -203,26 +203,34 @@ The web setup flow also supports mapping multiple channels directly.
 
 ## File Naming
 
-Files are named using this pattern:
+Uploads are stored in a dated subfolder inside the mapped Google Drive folder:
 
 ```text
-yyyy-mm-dd-hh-mm - display name - comment.ext
+YYYY-mm-dd/
+```
+
+Files inside that subfolder are named using this pattern:
+
+```text
+display name - hh-mm-ss - comment.ext
 ```
 
 Rules:
 
 - If there is no message text, the filename becomes:
-  `yyyy-mm-dd-hh-mm - display name.ext`
+  `display name - hh-mm-ss.ext`
 - The display name uses the server display name first, then falls back to Discord global name, then username
 - Message text is truncated to the first 100 characters
+- The dated folder is created automatically if it does not already exist
+- The dated folder and time stamp use the app server's local timezone
 - If the base filename already exists, a suffix is added:
   `_1`, `_2`, `_3`, and so on
 
 Example:
 
 ```text
-2026-03-15-12-54 - Alice Example - Whiteboard photo.png
-2026-03-15-12-54 - Alice Example - Whiteboard photo_1.png
+2026-03-15/Alice Example - 12-54-11 - Whiteboard photo.png
+2026-03-15/Alice Example - 12-54-11 - Whiteboard photo_1.png
 ```
 
 ## Upload Confirmation Message
@@ -232,19 +240,19 @@ Successful uploads respond in Discord with a folder link and filename preview.
 Single file:
 
 ```md
-Uploaded to [_From Discord](https://drive.google.com/drive/folders/your-folder-id).
+Uploaded to [_From Discord/2026-03-15](https://drive.google.com/drive/folders/your-folder-id).
 
 File name:
-- 2026-03-15-12-54 - Alice Example.png
+- Alice Example - 12-54-11.png
 ```
 
 Multiple files:
 
 ```md
-Uploaded to [_From Discord](https://drive.google.com/drive/folders/your-folder-id).
+Uploaded to [_From Discord/2026-03-15](https://drive.google.com/drive/folders/your-folder-id).
 
 File names starting from:
-- 2026-03-15-12-42 - Alice Example.jpg
+- Alice Example - 12-42-02.jpg
 ```
 
 ## Development
