@@ -222,6 +222,7 @@ Rules:
 - The display name uses the server display name first, then falls back to Discord global name, then username
 - Message text is truncated to the first 100 characters
 - The dated folder is created automatically if it does not already exist
+- The dated folder and time stamp use the app server's local timezone
 - If the base filename already exists, a suffix is added:
   `_1`, `_2`, `_3`, and so on
 

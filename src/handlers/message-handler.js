@@ -2,7 +2,7 @@ import { Client, GatewayIntentBits, REST, Routes } from 'discord.js';
 import { ConfigStore } from '../services/config-store.js';
 import { GoogleAuthService } from '../services/google-auth.js';
 import { GoogleDriveService } from '../services/google-drive.js';
-import { formatUploadDate, generateFileName, reserveDuplicateFilename } from '../utils/file-namer.js';
+import { formatUploadDate, generateFileName, getUploadTimeZone, reserveDuplicateFilename } from '../utils/file-namer.js';
 import { formatUploadStatusMessage } from '../utils/upload-status.js';
 import { createLogger } from '../utils/logger.js';
 import fetch from 'node-fetch';
@@ -99,7 +99,8 @@ export class DiscordBot {
 
     logger.info(`Processing ${supportedAttachments.length} attachments from channel ${channel.name}`);
 
-    const uploadDate = formatUploadDate(message.createdAt);
+    const uploadTimeZone = getUploadTimeZone();
+    const uploadDate = formatUploadDate(message.createdAt, uploadTimeZone);
     const { driveService, uploadFolder, existingFilenames } = await this.prepareDriveUploadContext(
       channelConfig.driveFolderId,
       uploadDate
@@ -109,7 +110,8 @@ export class DiscordBot {
         attachment.name,
         message.content,
         message.createdAt,
-        message.member?.displayName || message.author?.globalName || message.author?.username || ''
+        message.member?.displayName || message.author?.globalName || message.author?.username || '',
+        uploadTimeZone
       );
 
       return reserveDuplicateFilename(baseFilename, existingFilenames);

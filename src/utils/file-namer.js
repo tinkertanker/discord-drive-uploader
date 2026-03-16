@@ -1,8 +1,14 @@
-export function generateFileName(originalName, messageContent = '', timestamp = new Date(), authorName = '') {
+export function generateFileName(
+  originalName,
+  messageContent = '',
+  timestamp = new Date(),
+  authorName = '',
+  timeZone = getUploadTimeZone()
+) {
   const nameParts = originalName.split('.');
   const extension = nameParts.length > 1 ? nameParts.pop().toLowerCase() : '';
 
-  const time = formatUploadTime(timestamp);
+  const time = formatUploadTime(timestamp, timeZone);
   const safeAuthor = sanitizeForFilename(authorName) || 'Unknown user';
   const safeComment = sanitizeForFilename(messageContent, 100);
 
@@ -13,12 +19,40 @@ export function generateFileName(originalName, messageContent = '', timestamp = 
   return extension ? `${baseFileName}.${extension}` : baseFileName;
 }
 
-export function formatUploadDate(timestamp = new Date()) {
-  return timestamp.toISOString().slice(0, 10);
+export function getUploadTimeZone() {
+  return Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
 }
 
-export function formatUploadTime(timestamp = new Date()) {
-  return timestamp.toISOString().slice(11, 19).replace(/:/g, '-');
+function getFormatterParts(timestamp, timeZone, options) {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone,
+    ...options
+  }).formatToParts(timestamp);
+}
+
+function getPart(parts, type) {
+  return parts.find((part) => part.type === type)?.value || '';
+}
+
+export function formatUploadDate(timestamp = new Date(), timeZone = getUploadTimeZone()) {
+  const parts = getFormatterParts(timestamp, timeZone, {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit'
+  });
+
+  return `${getPart(parts, 'year')}-${getPart(parts, 'month')}-${getPart(parts, 'day')}`;
+}
+
+export function formatUploadTime(timestamp = new Date(), timeZone = getUploadTimeZone()) {
+  const parts = getFormatterParts(timestamp, timeZone, {
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false
+  });
+
+  return `${getPart(parts, 'hour')}-${getPart(parts, 'minute')}-${getPart(parts, 'second')}`;
 }
 
 export function sanitizeForFilename(text, maxLength = 80) {

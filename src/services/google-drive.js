@@ -7,6 +7,7 @@ const logger = createLogger('GoogleDrive');
 export class GoogleDriveService {
   constructor(authClient) {
     this.drive = google.drive({ version: 'v3', auth: authClient });
+    this.pendingFolderEnsures = new Map();
   }
 
   escapeDriveQueryValue(value) {
@@ -86,12 +87,28 @@ export class GoogleDriveService {
   }
 
   async ensureFolder(name, parentId = null) {
-    const existingFolder = await this.findFolderByName(name, parentId);
-    if (existingFolder) {
-      return existingFolder;
+    const folderKey = `${parentId || 'root'}:${name}`;
+    const pendingEnsure = this.pendingFolderEnsures.get(folderKey);
+    if (pendingEnsure) {
+      return pendingEnsure;
     }
 
-    return this.createFolder(name, parentId);
+    const ensurePromise = (async () => {
+      const existingFolder = await this.findFolderByName(name, parentId);
+      if (existingFolder) {
+        return existingFolder;
+      }
+
+      return this.createFolder(name, parentId);
+    })();
+
+    this.pendingFolderEnsures.set(folderKey, ensurePromise);
+
+    try {
+      return await ensurePromise;
+    } finally {
+      this.pendingFolderEnsures.delete(folderKey);
+    }
   }
 
   async uploadFile(fileBuffer, fileName, folderId, mimeType) {
