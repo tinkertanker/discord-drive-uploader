@@ -16,6 +16,7 @@ Self-hosted Discord bot and setup UI for uploading photos and videos from Discor
 - Google Picker-based Drive folder selection
 - Per-server and per-channel folder mapping
 - Optional default `default-for-discord` folder creation during setup
+- In-place default folder changes from the linked folders page
 - Markdown upload confirmations with folder links
 - File-backed configuration storage
 - Docker-first local and self-hosted setup
@@ -154,11 +155,12 @@ Then open the app in your browser, usually at:
 Complete the browser setup in this order:
 
 1. Connect Google Drive
-2. Enter the Discord bot token
-3. Pick a default Google Drive folder
+2. Pick a default Google Drive folder
    - You can either choose a folder directly
    - Or choose a parent folder and create a `default-for-discord` folder inside it
+3. Enter the Discord bot token
 4. Link Discord servers and channels to Drive folders
+   - You can also review and change the default fallback folder again from this page later
 
 If `SETUP_API_TOKEN` is configured, enter it when prompted before saving configuration.
 

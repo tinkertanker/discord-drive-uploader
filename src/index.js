@@ -412,6 +412,15 @@ const server = createServer(async (req, res) => {
       }));
     }
 
+    if (method === 'GET' && pathname === '/api/config-folder') {
+      if (!isAuthorizedSetupRequest(req, res)) return;
+
+      const folder = await configStore.getDefaultFolder();
+      return sendResponse(res, json({
+        folder: folder || null
+      }));
+    }
+
     if (method === 'POST' && pathname === '/api/config-folder') {
       if (!isAuthorizedSetupRequest(req, res)) return;
 

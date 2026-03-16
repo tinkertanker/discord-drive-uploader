@@ -106,7 +106,7 @@ async function handleUploadInfo(interaction) {
   const configStore = new ConfigStore();
   await configStore.initialize();
 
-  const channelConfig = await configStore.getChannelFolder(guild_id, channel_id);
+  const channelConfig = await configStore.getUploadFolder(guild_id, channel_id);
   
   if (!channelConfig) {
     return createResponse(
@@ -114,10 +114,16 @@ async function handleUploadInfo(interaction) {
     );
   }
 
-  const configuredDate = new Date(channelConfig.configuredAt).toLocaleDateString();
+  const configuredDate = channelConfig.configuredAt
+    ? new Date(channelConfig.configuredAt).toLocaleDateString()
+    : 'Unknown';
+  const sourceLabel = channelConfig.source === 'default'
+    ? 'Default fallback folder'
+    : 'Channel-specific folder';
   
   return createResponse(
     '📁 **Upload Configuration**\n' +
+    `Source: **${sourceLabel}**\n` +
     `Folder: **${channelConfig.folderName}**\n` +
     `Configured on: ${configuredDate}`
   );

@@ -81,8 +81,7 @@ export class DiscordBot {
     const { guild, channel } = message;
     if (!guild) return;
     
-    // Get channel configuration
-    const channelConfig = await this.configStore.getChannelFolder(guild.id, channel.id);
+    const channelConfig = await this.configStore.getUploadFolder(guild.id, channel.id);
     if (!channelConfig) {
       logger.debug(`No upload configuration for channel ${channel.id}`);
       return;
