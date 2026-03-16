@@ -79,20 +79,20 @@ export class ConfigStore {
   async setChannelFolder(guildId, channelId, folderId, folderName, enabled = true) {
     try {
       const guildConfig = await this.getGuildConfig(guildId);
-      
+
       if (!guildConfig.channels) {
         guildConfig.channels = {};
       }
-      
+
+      const useDefault = !folderId;
       guildConfig.channels[channelId] = {
-        driveFolderId: folderId,
-        folderName: folderName,
+        ...(useDefault ? { useDefault: true } : { driveFolderId: folderId, folderName: folderName }),
         configuredAt: Date.now(),
         enabled
       };
-      
+
       await this.setGuildConfig(guildId, guildConfig);
-      logger.info(`Set folder ${folderName} for channel ${channelId} in guild ${guildId}`);
+      logger.info(`Set folder ${useDefault ? '(default)' : folderName} for channel ${channelId} in guild ${guildId}`);
     } catch (error) {
       logger.error('Failed to set channel folder:', error);
       throw new Error('Failed to configure channel folder');
@@ -105,6 +105,10 @@ export class ConfigStore {
       if (guildConfig.channels?.[channelId]) {
         const channelConfig = guildConfig.channels[channelId];
         if (channelConfig?.enabled === false) {
+          return null;
+        }
+        // useDefault channels are resolved by getUploadFolder, not here
+        if (channelConfig?.useDefault) {
           return null;
         }
         return channelConfig;
@@ -127,7 +131,15 @@ export class ConfigStore {
       }
 
       const guildConfig = await this.getGuildConfig(guildId);
-      if (guildConfig.channels?.[channelId]?.enabled === false) {
+      const entry = guildConfig.channels?.[channelId];
+
+      // No config at all, or explicitly disabled — don't upload
+      if (!entry || entry.enabled === false) {
+        return null;
+      }
+
+      // Only fall back to the default folder for channels explicitly linked to it
+      if (!entry.useDefault) {
         return null;
       }
 
@@ -203,8 +215,9 @@ export class ConfigStore {
           mappings.push({
             guildId,
             channelId,
-            folderId: config.driveFolderId,
-            folderName: config.folderName,
+            folderId: config.driveFolderId || null,
+            folderName: config.folderName || null,
+            useDefault: config.useDefault === true,
             enabled: config.enabled !== false,
             configuredAt: config.configuredAt || null
           });

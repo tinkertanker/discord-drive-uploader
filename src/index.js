@@ -570,19 +570,21 @@ const server = createServer(async (req, res) => {
       }
 
       const { folderId, folderName } = body;
-      if (!folderId || !folderName) {
-        return sendResponse(res, json({ error: 'folderId and folderName are required when enabling a mapping' }, 400));
+      const useDefault = !folderId;
+
+      // Allow folderId to be null/omitted to link the channel to the default folder
+      if (!useDefault && !folderName) {
+        return sendResponse(res, json({ error: 'folderName is required when specifying a folderId' }, 400));
       }
 
-      await configStore.setChannelFolder(guildId, channelId, folderId, folderName, true);
+      await configStore.setChannelFolder(guildId, channelId, folderId || null, folderName || null, true);
       return sendResponse(res, json({
         success: true,
         action: 'enabled',
         mapping: {
           guildId,
           channelId,
-          folderId,
-          folderName
+          ...(useDefault ? { useDefault: true } : { folderId, folderName })
         }
       }));
     }

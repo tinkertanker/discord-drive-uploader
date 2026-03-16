@@ -740,8 +740,10 @@ async function loadMappingStep() {
     if (!guilds.length) {
       channelSelector.disabled = true;
       document.getElementById('link-channel-btn').disabled = true;
+      document.getElementById('link-channel-default-btn').disabled = true;
     } else {
       document.getElementById('link-channel-btn').disabled = false;
+      document.getElementById('link-channel-default-btn').disabled = false;
     }
 
     guilds.forEach((guild) => {
@@ -769,6 +771,7 @@ async function loadMappingStep() {
     channelSelector.innerHTML = '<option value="">Unable to load channels</option>';
     channelSelector.disabled = true;
     document.getElementById('link-channel-btn').disabled = true;
+    document.getElementById('link-channel-default-btn').disabled = true;
   }
 }
 
@@ -816,7 +819,7 @@ function renderChannelLinks() {
         <div class="mapping-item">
           <div>
             <strong>${config.guildName || config.guildId}</strong><br>
-            <small>${formatChannelLabel(config.channelId)} → ${config.folderName || 'No folder'}</small>
+            <small>${formatChannelLabel(config.channelId)} → ${config.useDefault ? '(default folder)' : config.folderName || 'No folder'}</small>
           </div>
           <div class="actions">
             <button class="btn btn-primary" data-action="toggle" data-key="${key}">
@@ -908,6 +911,44 @@ async function linkChannelToFolder() {
   }
 }
 
+async function linkChannelToDefaultFolder() {
+  const guildId = getInputValue('guild-selector');
+  const channelId = getInputValue('channel-selector');
+
+  if (!guildId || !channelId) {
+    setLinkFeedback('Pick a server and channel before linking.', true);
+    return;
+  }
+
+  if (!currentDefaultFolder) {
+    setLinkFeedback('No default folder is configured. Set a default folder first.', true);
+    return;
+  }
+
+  setLinkFeedback('');
+  const button = document.getElementById('link-channel-default-btn');
+  addLoadingText(button, 'Linking...');
+
+  try {
+    const response = await apiPost('/api/config-channel', {
+      guildId,
+      channelId
+    });
+    throwIfUnauthorized(response);
+    if (!response.ok) {
+      const message = await parseResponseError(response, 'Failed to link channel');
+      throw new Error(message);
+    }
+
+    await loadMappingStep();
+    setLinkFeedback('Channel linked to default folder.');
+  } catch (error) {
+    setLinkFeedback(error.message, true);
+  } finally {
+    clearLoadingText(button, 'Link channel to default folder');
+  }
+}
+
 async function updateChannelMapping(guildId, channelId, updates) {
   const response = await apiPost('/api/config-channel', {
     guildId,
@@ -939,6 +980,7 @@ async function removeChannelMapping(guildId, channelId) {
 function setupMappingActions() {
   const button = document.getElementById('link-channel-btn');
   button?.addEventListener('click', linkChannelToFolder);
+  document.getElementById('link-channel-default-btn')?.addEventListener('click', linkChannelToDefaultFolder);
   document.getElementById('open-channel-folder-picker')?.addEventListener('click', openChannelFolderPicker);
   document.getElementById('open-change-default-folder-picker')?.addEventListener('click', openChangeDefaultFolderPicker);
   document.getElementById('save-default-folder-btn')?.addEventListener('click', saveChangedDefaultFolder);

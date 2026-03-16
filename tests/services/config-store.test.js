@@ -99,6 +99,22 @@ describe('ConfigStore', () => {
       });
     });
 
+    test('sets channel folder to use default when folderId is null', async () => {
+      mockStore.get.mockResolvedValueOnce({ channels: {} });
+
+      await configStore.setChannelFolder('guild123', 'channel456', null, null);
+
+      expect(mockStore.setJSON).toHaveBeenCalledWith('guild_guild123', {
+        channels: {
+          channel456: {
+            useDefault: true,
+            configuredAt: expect.any(Number),
+            enabled: true
+          }
+        }
+      });
+    });
+
     test('gets channel folder configuration', async () => {
       const guildConfig = {
         channels: {
@@ -122,17 +138,35 @@ describe('ConfigStore', () => {
       expect(result).toBeNull();
     });
 
-    test('falls back to the default folder for uploads when a channel is unmapped', async () => {
+    test('does not fall back to the default folder for uploads when a channel is unmapped', async () => {
       mockStore.get
         .mockResolvedValueOnce({ channels: {} })
-        .mockResolvedValueOnce({ channels: {} })
+        .mockResolvedValueOnce({ channels: {} });
+
+      const result = await configStore.getUploadFolder('guild123', 'unmapped-channel');
+      expect(result).toBeNull();
+    });
+
+    test('falls back to the default folder for uploads when a channel is explicitly linked to the default', async () => {
+      const guildConfig = {
+        channels: {
+          'default-channel': {
+            useDefault: true,
+            configuredAt: 1710000000000,
+            enabled: true
+          }
+        }
+      };
+      mockStore.get
+        .mockResolvedValueOnce(guildConfig)
+        .mockResolvedValueOnce(guildConfig)
         .mockResolvedValueOnce({
           id: 'default123',
           name: 'Fallback Uploads',
           configuredAt: 1710000000000
         });
 
-      const result = await configStore.getUploadFolder('guild123', 'unmapped-channel');
+      const result = await configStore.getUploadFolder('guild123', 'default-channel');
       expect(result).toEqual({
         driveFolderId: 'default123',
         folderName: 'Fallback Uploads',
