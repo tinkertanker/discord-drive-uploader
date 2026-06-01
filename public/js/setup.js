@@ -313,17 +313,29 @@ function renderDefaultFolder() {
   if (node) node.textContent = state.defaultFolder?.name || 'Not set';
 }
 
+function botInviteUrl() {
+  const appId = getMeta('discord-app-id');
+  return appId
+    ? `https://discord.com/api/oauth2/authorize?client_id=${appId}&permissions=3072&scope=bot%20applications.commands`
+    : null;
+}
+
 function renderInviteCallout() {
+  const url = botInviteUrl();
   const noGuilds = state.guilds.length === 0;
-  show(el('invite-callout'), noGuilds);
-  if (noGuilds) {
-    const appId = getMeta('discord-app-id');
+
+  // Populate the invite link everywhere it appears (big callout + the inline
+  // "invite another server" link), regardless of how many servers exist.
+  if (url) {
     const input = el('bot-invite');
-    if (appId && input) {
-      input.value = `https://discord.com/api/oauth2/authorize?client_id=${appId}&permissions=3072&scope=bot%20applications.commands`;
-    }
+    if (input) input.value = url;
+    const inline = el('invite-another');
+    if (inline) inline.href = url;
   }
-  // Hide the "add link" affordance until the bot is in at least one server.
+
+  // The prominent callout is only for first-run (no servers yet). Once the bot
+  // is in a server, inviting it to more lives inline in the add-link panel.
+  show(el('invite-callout'), noGuilds);
   show(el('add-link-toggle'), !noGuilds);
 }
 
@@ -682,12 +694,19 @@ function bindEvents() {
   });
 
   // dashboard: add link
-  el('add-link-toggle')?.addEventListener('click', () => {
+  el('add-link-toggle')?.addEventListener('click', async () => {
     const panel = el('add-link-panel');
     const opening = panel?.hidden;
     if (opening) {
       state.channelDraft = { id: null, name: null };
       updateChannelPicked();
+      // Re-fetch servers so one just invited shows up without a full reload.
+      const guilds = await loadGuilds();
+      if (guilds.length) {
+        state.guilds = guilds;
+        state.guildNames = new Map(guilds.map((g) => [g.id, g.name]));
+        renderGuildOptions();
+      }
     }
     show(panel, opening);
   });

@@ -291,6 +291,22 @@ body {
   font-weight: 600;
 }
 
+.hint {
+  font-size: 0.85rem;
+  color: var(--muted);
+  margin-top: -0.35rem;
+}
+
+.hint a {
+  color: var(--accent);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.hint a:hover {
+  text-decoration: underline;
+}
+
 /* ── Controls ────────────────────────────────────────────── */
 .input {
   width: 100%;
