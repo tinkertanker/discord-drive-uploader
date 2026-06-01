@@ -1,165 +1,34 @@
 const setupTokenStorageKey = 'discord-drive-setup-token';
 const setupAuthRequired = getMeta('setup-auth-required') === 'true';
-const DEFAULT_DISCORD_FOLDER_NAME = 'default-for-discord';
-const SETUP_STEP_ORDER = [2, 3, 4, 5, 6];
-const STEP_METADATA = {
-  2: {
-    title: 'Connect Google Drive',
-  },
-  3: {
-    title: 'Choose a default folder',
-  },
-  4: {
-    title: 'Add the bot token',
-  },
-  5: {
-    title: 'Invite the bot',
-  },
-  6: {
-    title: 'Link servers and channels',
-  },
+const SETUP_STEPS = ['google', 'folder', 'token'];
+const THEME_META_COLORS = { light: '#f7f8fa', dark: '#0e1116' };
+
+const state = {
+  configured: { google: false, defaultFolder: false, discord: false },
+  defaultFolder: null,
+  guilds: [],
+  guildNames: new Map(),
+  channelNames: new Map(),
+  links: [],
+  // draft folder selections
+  defaultDraft: { id: null, name: null, create: false },
+  channelDraft: { id: null, name: null },
 };
-const THEME_META_COLORS = {
-  light: '#eef4fb',
-  dark: '#07111f',
-};
-let currentStep = 2;
-let selectedFolderId = null;
-let selectedFolderName = null;
-let createDefaultFolder = false;
-let selectedChannelFolderId = null;
-let selectedChannelFolderName = null;
-let currentDefaultFolder = null;
-let folders = [];
+
 let googlePickerConfig = null;
 let pickerApiReadyPromise = null;
-const channelConfigs = new Map();
-let guilds = [];
+let toastTimer = null;
 
-function getStoredSetupToken() {
-  return sessionStorage.getItem(setupTokenStorageKey) || '';
+/* ───────────────────────── small helpers ───────────────────────── */
+function getMeta(name) {
+  return document.querySelector(`meta[name="${name}"]`)?.content || null;
 }
-
-function clearStoredSetupToken() {
-  sessionStorage.removeItem(setupTokenStorageKey);
+function el(id) {
+  return document.getElementById(id);
 }
-
-function requestSetupToken() {
-  const token = window.prompt('Enter setup token configured on the server');
-  if (!token) return '';
-
-  const trimmed = token.trim();
-  if (!trimmed) return '';
-
-  sessionStorage.setItem(setupTokenStorageKey, trimmed);
-  return trimmed;
+function show(node, visible) {
+  if (node) node.hidden = !visible;
 }
-
-function getSetupToken() {
-  if (!setupAuthRequired) return '';
-
-  let token = getStoredSetupToken();
-  if (token) return token;
-
-  token = requestSetupToken();
-  return token;
-}
-
-function withSetupAuthHeaders(extra = {}) {
-  if (!setupAuthRequired) {
-    return extra;
-  }
-
-  const token = getSetupToken();
-  if (!token) {
-    throw new Error('Setup token required');
-  }
-
-  return {
-    ...extra,
-    'X-Setup-Token': token,
-  };
-}
-
-function throwIfUnauthorized(response) {
-  if (response.status !== 401 && response.status !== 403) {
-    return false;
-  }
-
-  clearStoredSetupToken();
-  throw new Error('Invalid or expired setup token');
-}
-
-function nextStep() {
-  showStep(currentStep + 1);
-}
-
-function showStep(step) {
-  document.querySelectorAll('.step').forEach((el) => {
-    el.classList.remove('active');
-  });
-
-  const stepElement = document.querySelector(`[data-step="${step}"]`);
-  if (!stepElement) return;
-
-  stepElement.classList.add('active');
-  currentStep = step;
-  updateWizardProgress(step);
-
-  if (step === 3) {
-    loadDefaultFolderStep();
-  } else if (step === 5) {
-    generateInviteLink();
-    loadSetupComplete();
-  } else if (step === 6) {
-    loadMappingStep();
-  }
-}
-
-function updateWizardProgress(step) {
-  const index = SETUP_STEP_ORDER.indexOf(step);
-  const metadata = STEP_METADATA[step];
-  const countEl = document.getElementById('wizard-progress-count');
-  const titleEl = document.getElementById('wizard-progress-title');
-
-  if (countEl && index >= 0) {
-    countEl.textContent = `Step ${index + 1} of ${SETUP_STEP_ORDER.length}`;
-  }
-
-  if (titleEl && metadata?.title) {
-    titleEl.textContent = metadata.title;
-  }
-
-  document.querySelectorAll('[data-nav-step]').forEach((item) => {
-    const navStep = Number(item.dataset.navStep);
-    const navIndex = SETUP_STEP_ORDER.indexOf(navStep);
-    item.classList.toggle('active', navStep === step);
-    item.classList.toggle('complete', navIndex >= 0 && navIndex < index);
-  });
-}
-
-function resetToGoogleDriveStep(message) {
-  folders = [];
-  googlePickerConfig = null;
-  selectedFolderId = null;
-  selectedFolderName = null;
-  createDefaultFolder = false;
-  selectedChannelFolderId = null;
-  selectedChannelFolderName = null;
-
-  const params = new URLSearchParams(window.location.search);
-  params.delete('step');
-  params.delete('oauth');
-  const query = params.toString();
-  const nextUrl = query ? `${window.location.pathname}?${query}` : window.location.pathname;
-  window.history.replaceState({}, '', nextUrl);
-
-  showStep(2);
-  if (message) {
-    showError(message);
-  }
-}
-
 function escapeHtml(value) {
   return String(value)
     .replaceAll('&', '&amp;')
@@ -168,119 +37,91 @@ function escapeHtml(value) {
     .replaceAll('"', '&quot;')
     .replaceAll("'", '&#39;');
 }
-
-function setLinkFeedback(message, isError = false) {
-  const feedback = document.getElementById('link-feedback');
-  if (!feedback) return;
-
-  feedback.textContent = message;
-  feedback.style.color = isError ? 'var(--error)' : 'var(--secondary-color)';
-  feedback.classList.toggle('show', Boolean(message));
-}
-
-function setDefaultFolderFeedback(message, isError = false) {
-  const feedback = document.getElementById('default-folder-feedback');
-  if (!feedback) return;
-
-  feedback.textContent = message;
-  feedback.style.color = isError ? 'var(--error)' : 'var(--secondary-color)';
-  feedback.classList.toggle('show', Boolean(message));
-}
-
-function showError(message) {
-  const errorEl = document.getElementById('error-message');
-  errorEl.textContent = message;
-  errorEl.classList.add('show');
-  setTimeout(() => errorEl.classList.remove('show'), 5000);
-}
-
-function parseResponseError(response, fallback) {
-  return response.json().then((payload) => payload.error || fallback);
-}
-
-function getInputValue(id) {
-  const el = document.getElementById(id);
-  return (el?.value || '').trim();
-}
-
-function setButtonLoading(button, loading) {
+function setBusy(button, busy, busyText = 'Working…') {
   if (!button) return;
-  button.disabled = loading;
-  button.textContent = loading ? 'Loading...' : button.dataset.defaultText || 'Continue';
-}
-
-function formatChannelLabel(channelId) {
-  return escapeHtml(String(channelId));
-}
-
-function updateChannelFolderSummary() {
-  const selectedFolder = document.getElementById('selected-channel-folder');
-  if (!selectedFolder) return;
-
-  if (!selectedChannelFolderId || !selectedChannelFolderName) {
-    selectedFolder.innerHTML = '<p class="info">No Google Drive folder selected yet.</p>';
-    return;
+  if (busy) {
+    button.dataset.idle = button.dataset.idle || button.textContent;
+    button.textContent = busyText;
+    button.disabled = true;
+  } else {
+    button.textContent = button.dataset.idle || button.textContent;
+    button.disabled = false;
   }
-
-  selectedFolder.innerHTML = `
-    <div class="picker-selection">
-      <strong>Selected folder</strong>
-      <span>${escapeHtml(selectedChannelFolderName)}</span>
-    </div>
-  `;
+}
+function toast(message, isError = false) {
+  const node = el('toast');
+  if (!node) return;
+  node.textContent = message;
+  node.classList.toggle('error', isError);
+  node.hidden = false;
+  requestAnimationFrame(() => node.classList.add('show'));
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(
+    () => {
+      node.classList.remove('show');
+      setTimeout(() => {
+        node.hidden = true;
+      }, 200);
+    },
+    isError ? 5000 : 2600
+  );
 }
 
+/* ───────────────────────── setup-token auth ────────────────────── */
+function requestSetupToken() {
+  const token = window.prompt('Enter the setup token configured on the server');
+  const trimmed = (token || '').trim();
+  if (trimmed) sessionStorage.setItem(setupTokenStorageKey, trimmed);
+  return trimmed;
+}
+function getSetupToken() {
+  if (!setupAuthRequired) return '';
+  return sessionStorage.getItem(setupTokenStorageKey) || requestSetupToken();
+}
+function withSetupAuthHeaders(extra = {}) {
+  if (!setupAuthRequired) return extra;
+  const token = getSetupToken();
+  if (!token) throw new Error('Setup token required');
+  return { ...extra, 'X-Setup-Token': token };
+}
+function throwIfUnauthorized(response) {
+  if (response.status === 401 || response.status === 403) {
+    sessionStorage.removeItem(setupTokenStorageKey);
+    throw new Error('Invalid or expired setup token');
+  }
+}
+
+/* ───────────────────────── api ─────────────────────────────────── */
 async function apiGet(path) {
-  const headers = withSetupAuthHeaders({
-    'Content-Type': 'application/json',
-  });
-  return fetch(path, { headers });
+  return fetch(path, { headers: withSetupAuthHeaders({ 'Content-Type': 'application/json' }) });
 }
-
 async function apiPost(path, body) {
-  const headers = withSetupAuthHeaders({
-    'Content-Type': 'application/json',
-  });
   return fetch(path, {
     method: 'POST',
-    headers,
+    headers: withSetupAuthHeaders({ 'Content-Type': 'application/json' }),
     body: JSON.stringify(body),
   });
 }
-
-async function startGoogleAuth() {
-  try {
-    window.location.href = '/auth/google/start';
-  } catch {
-    showError('Failed to start Google authentication');
-  }
+async function errorText(response, fallback) {
+  return response
+    .json()
+    .then((payload) => payload.error || fallback)
+    .catch(() => fallback);
 }
 
+/* ───────────────────────── google picker ───────────────────────── */
 async function loadGooglePickerConfig(forceRefresh = false) {
-  if (googlePickerConfig && !forceRefresh) {
-    return googlePickerConfig;
-  }
-
+  if (googlePickerConfig && !forceRefresh) return googlePickerConfig;
   const response = await apiGet('/api/google-picker-config');
   throwIfUnauthorized(response);
-  if (!response.ok) {
-    const error = await response.json().catch(() => ({}));
-    throw new Error(error.error || 'Unable to prepare Google Drive picker');
-  }
-
+  if (!response.ok)
+    throw new Error(await errorText(response, 'Unable to prepare Google Drive picker'));
   googlePickerConfig = await response.json();
   return googlePickerConfig;
 }
-
 async function ensureGooglePickerLoaded() {
-  if (window.google?.picker) {
-    return;
-  }
-
-  if (!window.gapi) {
-    throw new Error('Google Picker library failed to load');
-  }
-
+  if (window.google?.picker) return;
+  if (!window.gapi) throw new Error('Google Picker library failed to load');
   if (!pickerApiReadyPromise) {
     pickerApiReadyPromise = new Promise((resolve, reject) => {
       window.gapi.load('picker', {
@@ -289,915 +130,614 @@ async function ensureGooglePickerLoaded() {
       });
     });
   }
-
   await pickerApiReadyPromise;
 }
-
-function updateDefaultFolderSummary() {
-  const selectedFolder = document.getElementById('selected-folder');
-  const continueButton = document.getElementById('continue-folder');
-  if (!selectedFolder) return;
-
-  if (!selectedFolderId || !selectedFolderName) {
-    selectedFolder.innerHTML = createDefaultFolder
-      ? `<p class="info">No parent folder selected yet. We will create <code>${escapeHtml(DEFAULT_DISCORD_FOLDER_NAME)}</code> inside the folder you pick.</p>`
-      : '<p class="info">No fallback folder selected yet.</p>';
-    if (continueButton) {
-      continueButton.disabled = true;
-    }
-    return;
-  }
-
-  if (createDefaultFolder) {
-    selectedFolder.innerHTML = `
-      <div class="picker-selection">
-        <strong>Selected parent folder</strong>
-        <span>${escapeHtml(selectedFolderName)}</span>
-        <small>A new <code>${escapeHtml(DEFAULT_DISCORD_FOLDER_NAME)}</code> folder will be created inside this location and used for uploads.</small>
-      </div>
-    `;
-  } else {
-    selectedFolder.innerHTML = `
-      <div class="picker-selection">
-        <strong>Selected folder</strong>
-        <span>${escapeHtml(selectedFolderName)}</span>
-      </div>
-    `;
-  }
-
-  if (continueButton) {
-    continueButton.disabled = false;
-  }
-}
-
-function renderDefaultFolderPicker() {
-  const folderList = document.getElementById('folder-list');
-  if (!folderList) return;
-
-  folderList.innerHTML = `
-    <div class="picker-launcher">
-      <label class="checkbox-option" for="create-default-folder-checkbox">
-        <input type="checkbox" id="create-default-folder-checkbox">
-        <span>Create a <code>${escapeHtml(DEFAULT_DISCORD_FOLDER_NAME)}</code> folder here for me</span>
-      </label>
-      <p class="info compact-info">If ticked, the folder you choose becomes the parent folder and we will create a new upload folder inside it.</p>
-      <button class="btn btn-primary" id="open-default-folder-picker" data-default-text="Choose folder in Google Drive">
-        Choose folder in Google Drive
-      </button>
-      <div id="selected-folder"></div>
-    </div>
-  `;
-
-  const checkbox = document.getElementById('create-default-folder-checkbox');
-  if (checkbox) {
-    checkbox.checked = createDefaultFolder;
-    checkbox.addEventListener('change', (event) => {
-      createDefaultFolder = event.currentTarget.checked;
-      updateDefaultFolderSummary();
-    });
-  }
-
-  document
-    .getElementById('open-default-folder-picker')
-    ?.addEventListener('click', openDefaultFolderPicker);
-  updateDefaultFolderSummary();
-}
-
-async function loadDefaultFolderStep() {
-  const folderList = document.getElementById('folder-list');
-  if (!folderList) return;
-
-  folderList.innerHTML = '<div class="loading">Preparing Google Drive picker...</div>';
-
-  try {
-    const config = await loadGooglePickerConfig();
-    if (!config.accessToken) {
-      throw new Error('Google Drive session is missing or expired');
-    }
-
-    renderDefaultFolderPicker();
-  } catch (error) {
-    console.error(error);
-    resetToGoogleDriveStep(error.message || 'Connect Google Drive first before choosing a folder.');
-  }
-}
-
 async function openDriveFolderPicker(title, onPicked) {
   const config = await loadGooglePickerConfig(true);
-  if (!config.accessToken) {
-    throw new Error('Google Drive session is missing or expired');
-  }
-
+  if (!config.accessToken) throw new Error('Google Drive session is missing or expired');
   await ensureGooglePickerLoaded();
 
-  const ViewId = window.google.picker.ViewId;
-  const DocsView = window.google.picker.DocsView;
-
-  // My Drive (includes Shared drives when SUPPORT_DRIVES is enabled)
-  const myDriveView = new DocsView(ViewId.DOCS)
+  const { ViewId, DocsView, PickerBuilder, Action, Feature } = window.google.picker;
+  const myDrive = new DocsView(ViewId.DOCS)
     .setIncludeFolders(true)
     .setSelectFolderEnabled(true)
     .setEnableDrives(true);
-
-  // Shared with me
-  const sharedWithMeView = new DocsView(ViewId.DOCS)
+  const sharedWithMe = new DocsView(ViewId.DOCS)
     .setOwnedByMe(false)
     .setIncludeFolders(true)
     .setSelectFolderEnabled(true);
-
-  // Starred
-  const starredView = new DocsView(ViewId.DOCS)
+  const starred = new DocsView(ViewId.DOCS)
     .setStarred(true)
     .setIncludeFolders(true)
     .setSelectFolderEnabled(true);
 
-  let pickerBuilder = new window.google.picker.PickerBuilder()
+  let builder = new PickerBuilder()
     .setOAuthToken(config.accessToken)
     .setOrigin(window.location.origin)
-    .addView(myDriveView)
-    .addView(sharedWithMeView)
-    .addView(starredView)
+    .addView(myDrive)
+    .addView(sharedWithMe)
+    .addView(starred)
     .setTitle(title)
     .setCallback((data) => {
-      if (data.action !== window.google.picker.Action.PICKED || !data.docs?.length) {
-        return;
-      }
-
+      if (data.action !== Action.PICKED || !data.docs?.length) return;
       const doc = data.docs[0];
-      // Only accept folder selection
       if (doc.mimeType !== 'application/vnd.google-apps.folder') {
-        showError('Please select a folder, not a file.');
+        toast('Please pick a folder, not a file.', true);
         return;
       }
-      onPicked({
-        id: doc.id,
-        name: doc.name || doc.title || 'Unnamed folder',
-      });
+      onPicked({ id: doc.id, name: doc.name || doc.title || 'Unnamed folder' });
     });
 
-  if (config.apiKey) {
-    pickerBuilder = pickerBuilder.setDeveloperKey(config.apiKey);
-  }
-
-  if (config.appId) {
-    pickerBuilder = pickerBuilder.setAppId(config.appId);
-  }
-
-  if (window.google.picker.Feature?.SUPPORT_DRIVES) {
-    pickerBuilder = pickerBuilder.enableFeature(window.google.picker.Feature.SUPPORT_DRIVES);
-  }
-
-  const picker = pickerBuilder.build();
-  picker.setVisible(true);
+  if (config.apiKey) builder = builder.setDeveloperKey(config.apiKey);
+  if (config.appId) builder = builder.setAppId(config.appId);
+  if (Feature?.SUPPORT_DRIVES) builder = builder.enableFeature(Feature.SUPPORT_DRIVES);
+  builder.build().setVisible(true);
 }
 
-async function openDefaultFolderPicker(event) {
-  const button = event.currentTarget;
-  setButtonLoading(button, true);
-
-  try {
-    const pickerTitle = createDefaultFolder
-      ? 'Select where to create your default-for-discord folder'
-      : 'Select a default Google Drive folder';
-
-    await openDriveFolderPicker(pickerTitle, (folder) => {
-      selectedFolderId = folder.id;
-      selectedFolderName = folder.name;
-      updateDefaultFolderSummary();
-    });
-  } catch (error) {
-    showError(error.message);
-  } finally {
-    setButtonLoading(button, false);
-  }
-}
-
-async function loadCurrentDefaultFolder() {
-  const response = await apiGet('/api/config-folder');
+/* ───────────────────────── data loads ──────────────────────────── */
+async function loadStatus() {
+  const response = await apiGet('/api/setup-complete');
   throwIfUnauthorized(response);
-  if (!response.ok) {
-    const message = await parseResponseError(response, 'Failed to load the default folder');
-    throw new Error(message);
-  }
-
+  if (!response.ok) throw new Error(await errorText(response, 'Failed to load setup status'));
   const data = await response.json();
-  return data.folder || null;
+  state.configured = data.configured || { google: false, defaultFolder: false, discord: false };
+  state.defaultFolder = data.defaultFolder || null;
+  return data;
 }
-
-async function loadFolders() {
-  const folderList = document.getElementById('folder-list');
-  folderList.innerHTML = '<div class="loading">Loading folders...</div>';
-
-  try {
-    const response = await apiGet('/api/folders');
-    throwIfUnauthorized(response);
-    if (!response.ok) {
-      const error = await response.json().catch(() => ({}));
-      throw new Error(error.error || 'Unable to fetch folders');
-    }
-
-    const rawBody = await response.text();
-    if (!rawBody.trim()) {
-      throw new Error('Google Drive session is missing or expired');
-    }
-
-    const data = JSON.parse(rawBody);
-    folders = data.folders || data;
-    if (!folders || folders.length === 0) {
-      folderList.innerHTML = '<div class="loading">No folders found</div>';
-      return;
-    }
-
-    folderList.innerHTML = folders
-      .map(
-        (folder) => `
-        <button class="btn btn-secondary folder-item" data-folder-id="${folder.id}" data-folder-name="${folder.name}">
-          ${folder.name}
-        </button>
-      `
-      )
-      .join('');
-
-    folderList.querySelectorAll('.folder-item').forEach((button) => {
-      button.addEventListener('click', () => {
-        selectFolder(button.dataset.folderId, button.dataset.folderName, button);
-      });
-    });
-  } catch (error) {
-    console.error(error);
-    resetToGoogleDriveStep(error.message || 'Connect Google Drive first before choosing a folder.');
-  }
-}
-
-function selectFolder(folderId, folderName, element) {
-  document.querySelectorAll('.folder-item').forEach((el) => el.classList.remove('selected'));
-  element.classList.add('selected');
-  selectedFolderId = folderId;
-  selectedFolderName = folderName;
-  const continueButton = document.getElementById('continue-folder');
-  if (continueButton) {
-    continueButton.disabled = false;
-  }
-}
-
-async function persistDefaultFolderSelection() {
-  if (!selectedFolderId) {
-    throw new Error('Please select a folder');
-  }
-
-  const response = await apiPost('/api/config-folder', {
-    folderId: selectedFolderId,
-    folderName: selectedFolderName,
-    createDefaultFolder,
-  });
-  throwIfUnauthorized(response);
-  if (!response.ok) {
-    const message = await parseResponseError(response, 'Failed to save folder configuration');
-    throw new Error(message);
-  }
-
-  const result = await response.json();
-  if (result.folder?.id && result.folder?.name) {
-    selectedFolderId = result.folder.id;
-    selectedFolderName = result.folder.name;
-    currentDefaultFolder = result.folder;
-  }
-
-  return result;
-}
-
-async function saveFolderAndContinue() {
-  const button = document.getElementById('continue-folder');
-  setButtonLoading(button, true);
-  try {
-    await persistDefaultFolderSelection();
-    nextStep();
-  } catch (error) {
-    showError(`Failed to save folder: ${error.message}`);
-  } finally {
-    setButtonLoading(button, false);
-  }
-}
-
-function addContinueButtonToFolderStep() {
-  const stepActions = document.getElementById('folder-step-actions');
-  if (document.getElementById('continue-folder')) return;
-  if (!stepActions) return;
-
-  const button = document.createElement('button');
-  button.id = 'continue-folder';
-  button.className = 'btn btn-primary';
-  button.dataset.defaultText = 'Continue';
-  button.textContent = 'Continue';
-  button.disabled = !selectedFolderId;
-  button.addEventListener('click', saveFolderAndContinue);
-  stepActions.appendChild(button);
-}
-
-function addLoadingText(button, loadingText) {
-  button.textContent = loadingText;
-  button.disabled = true;
-}
-
-function clearLoadingText(button, text) {
-  button.textContent = text;
-  button.disabled = false;
-}
-
-async function saveDiscordToken() {
-  const token = getInputValue('discord-token');
-  if (!token) {
-    showError('Please enter your Discord bot token');
-    return;
-  }
-
-  const button = document.querySelector('[data-step="4"] .btn-primary');
-  addLoadingText(button, 'Saving...');
-  try {
-    const response = await apiPost('/api/config-discord', {
-      token,
-    });
-    throwIfUnauthorized(response);
-    if (!response.ok) {
-      const message = await parseResponseError(response, 'Failed to save Discord token');
-      throw new Error(message);
-    }
-
-    nextStep();
-  } catch (error) {
-    showError(error.message);
-  } finally {
-    clearLoadingText(button, 'Continue');
-  }
-}
-
 async function loadGuilds() {
   const response = await apiGet('/api/bot-guilds');
   throwIfUnauthorized(response);
-  if (!response.ok) {
-    return [];
-  }
-
-  const data = await response.json();
-  return data.guilds || [];
+  if (!response.ok) return [];
+  return (await response.json()).guilds || [];
 }
-
 async function loadGuildChannels(guildId) {
   const response = await apiGet(`/api/guild-channels?guildId=${encodeURIComponent(guildId)}`);
   throwIfUnauthorized(response);
-  if (!response.ok) {
-    return [];
-  }
-
-  const data = await response.json();
-  return data.channels || [];
+  if (!response.ok) return [];
+  return (await response.json()).channels || [];
 }
-
 async function loadChannelConfigs() {
   const response = await apiGet('/api/channel-configs');
   throwIfUnauthorized(response);
   if (!response.ok) return [];
-
-  const data = await response.json();
-  return data.configs || [];
+  return (await response.json()).configs || [];
 }
 
-function updateCurrentDefaultFolderSummary() {
-  const selectedFolder = document.getElementById('current-default-folder');
-  if (!selectedFolder) return;
+/* ───────────────────────── view routing ────────────────────────── */
+function isFullyConfigured() {
+  const c = state.configured;
+  return Boolean(c.google && c.defaultFolder && c.discord);
+}
+function firstIncompleteStep() {
+  if (!state.configured.google) return 'google';
+  if (!state.configured.defaultFolder) return 'folder';
+  return 'token';
+}
 
-  if (!currentDefaultFolder?.id || !currentDefaultFolder?.name) {
-    selectedFolder.innerHTML = '<p class="info">No default folder is configured yet.</p>';
+async function refresh() {
+  try {
+    await loadStatus();
+  } catch (error) {
+    toast(error.message || 'Could not reach the server.', true);
     return;
   }
 
-  selectedFolder.innerHTML = `
-    <div class="picker-selection">
-      <strong>Current default folder</strong>
-      <span>${escapeHtml(currentDefaultFolder.name)}</span>
-    </div>
-  `;
-}
-
-function updateChangeDefaultFolderSummary() {
-  const selectedFolder = document.getElementById('selected-change-default-folder');
-  const saveButton = document.getElementById('save-default-folder-btn');
-  if (!selectedFolder) return;
-
-  if (!selectedFolderId || !selectedFolderName) {
-    selectedFolder.innerHTML = createDefaultFolder
-      ? `<p class="info">No parent folder selected yet. We will create <code>${escapeHtml(DEFAULT_DISCORD_FOLDER_NAME)}</code> inside the folder you pick.</p>`
-      : '<p class="info">No replacement folder selected yet.</p>';
-    if (saveButton) {
-      saveButton.disabled = true;
-    }
-    return;
-  }
-
-  if (createDefaultFolder) {
-    selectedFolder.innerHTML = `
-      <div class="picker-selection">
-        <strong>Selected parent folder</strong>
-        <span>${escapeHtml(selectedFolderName)}</span>
-        <small>A new <code>${escapeHtml(DEFAULT_DISCORD_FOLDER_NAME)}</code> folder will be created inside this location and used for uploads.</small>
-      </div>
-    `;
+  if (isFullyConfigured()) {
+    show(el('setup-view'), false);
+    await renderDashboard();
   } else {
-    selectedFolder.innerHTML = `
-      <div class="picker-selection">
-        <strong>Selected folder</strong>
-        <span>${escapeHtml(selectedFolderName)}</span>
-      </div>
-    `;
-  }
-
-  if (saveButton) {
-    saveButton.disabled = false;
+    show(el('dashboard-view'), false);
+    show(el('status-chips'), false);
+    renderSetup(firstIncompleteStep());
   }
 }
 
-function resetDefaultFolderDraftSelection() {
-  selectedFolderId = null;
-  selectedFolderName = null;
-  createDefaultFolder = false;
+/* ───────────────────────── setup view ──────────────────────────── */
+function renderSetup(step) {
+  show(el('setup-view'), true);
 
-  const checkbox = document.getElementById('change-default-folder-checkbox');
-  if (checkbox) {
-    checkbox.checked = false;
-  }
+  document.querySelectorAll('#stepper .stepper-item').forEach((item) => {
+    const target = item.dataset.step;
+    const isDone = SETUP_STEPS.indexOf(target) < SETUP_STEPS.indexOf(step);
+    item.classList.toggle('active', target === step);
+    item.classList.toggle('done', isDone);
+  });
 
-  updateChangeDefaultFolderSummary();
+  document.querySelectorAll('#setup-view .panel').forEach((panel) => {
+    panel.hidden = panel.dataset.step !== step;
+  });
+
+  if (step === 'folder') resetDefaultDraft('setup');
 }
 
-async function openChangeDefaultFolderPicker(event) {
-  const button = event.currentTarget;
-  setButtonLoading(button, true);
+/* ───────────────────────── dashboard view ──────────────────────── */
+async function renderDashboard() {
+  show(el('dashboard-view'), true);
+  renderStatusChips();
+  renderDefaultFolder();
 
+  let guilds = [];
+  let links = [];
   try {
-    const pickerTitle = createDefaultFolder
-      ? 'Select where to create your new default-for-discord folder'
-      : 'Select a new default Google Drive folder';
+    [guilds, links] = await Promise.all([loadGuilds(), loadChannelConfigs()]);
+  } catch (error) {
+    toast(error.message || 'Failed to load channel links.', true);
+  }
+  state.guilds = guilds;
+  state.guildNames = new Map(guilds.map((g) => [g.id, g.name]));
+  state.links = links;
 
-    await openDriveFolderPicker(pickerTitle, (folder) => {
-      selectedFolderId = folder.id;
-      selectedFolderName = folder.name;
-      updateChangeDefaultFolderSummary();
+  renderInviteCallout();
+  renderGuildOptions();
+  renderLinks();
+
+  // Resolve channel names in the background, then re-render the rows.
+  await resolveChannelNames(links);
+  renderLinks();
+}
+
+async function resolveChannelNames(links) {
+  const guildIds = [...new Set(links.map((link) => link.guildId))].filter((id) =>
+    state.guildNames.has(id)
+  );
+  try {
+    const results = await Promise.all(
+      guildIds.map((guildId) => loadGuildChannels(guildId).then((channels) => [guildId, channels]))
+    );
+    for (const [guildId, channels] of results) {
+      for (const channel of channels) {
+        state.channelNames.set(`${guildId}:${channel.id}`, channel.name);
+      }
+    }
+  } catch {
+    // Best-effort enhancement only — fall back to raw channel IDs on failure.
+  }
+}
+
+function renderStatusChips() {
+  const host = el('status-chips');
+  if (!host) return;
+  const chips = [
+    ['Google', state.configured.google],
+    ['Folder', state.configured.defaultFolder],
+    ['Bot', state.configured.discord],
+  ];
+  host.innerHTML = chips
+    .map(([label, on]) => `<span class="chip ${on ? 'on' : ''}">${label}</span>`)
+    .join('');
+  show(host, true);
+}
+
+function renderDefaultFolder() {
+  const node = el('default-folder-name');
+  if (node) node.textContent = state.defaultFolder?.name || 'Not set';
+}
+
+function renderInviteCallout() {
+  const noGuilds = state.guilds.length === 0;
+  show(el('invite-callout'), noGuilds);
+  if (noGuilds) {
+    const appId = getMeta('discord-app-id');
+    const input = el('bot-invite');
+    if (appId && input) {
+      input.value = `https://discord.com/api/oauth2/authorize?client_id=${appId}&permissions=3072&scope=bot%20applications.commands`;
+    }
+  }
+  // Hide the "add link" affordance until the bot is in at least one server.
+  show(el('add-link-toggle'), !noGuilds);
+}
+
+function renderGuildOptions() {
+  const select = el('guild-selector');
+  if (!select) return;
+  select.innerHTML = state.guilds.length
+    ? '<option value="">Select a server</option>'
+    : '<option value="">No servers yet</option>';
+  state.guilds.forEach((guild) => {
+    const option = document.createElement('option');
+    option.value = guild.id;
+    option.textContent = guild.name;
+    select.appendChild(option);
+  });
+}
+
+function renderLinks() {
+  const list = el('links-list');
+  if (!list) return;
+
+  if (!state.links.length) {
+    list.className = 'empty';
+    list.textContent = state.guilds.length
+      ? 'No channels linked yet. Use “Add link” to map a channel to a Drive folder.'
+      : 'Invite the bot to a server to start linking channels.';
+    return;
+  }
+
+  list.className = 'links';
+  const rows = [...state.links]
+    .sort((a, b) => {
+      const an = state.guildNames.get(a.guildId) || a.guildId;
+      const bn = state.guildNames.get(b.guildId) || b.guildId;
+      return `${an}${a.channelId}`.localeCompare(`${bn}${b.channelId}`);
+    })
+    .map((config) => {
+      const key = `${config.guildId}:${config.channelId}`;
+      const server = escapeHtml(state.guildNames.get(config.guildId) || 'Unknown server');
+      const channelName = state.channelNames.get(key);
+      const channel = channelName
+        ? `#${escapeHtml(channelName)}`
+        : escapeHtml(String(config.channelId));
+      const target = config.useDefault
+        ? 'Default folder'
+        : escapeHtml(config.folderName || 'No folder');
+      return `
+        <div class="link-row" data-key="${key}">
+          <div class="link-main">
+            <div class="link-title">
+              <span>${server}</span>
+              <span class="link-channel">${channel}</span>
+              <span class="pill ${config.enabled ? 'on' : 'off'}">${config.enabled ? 'Syncing' : 'Paused'}</span>
+            </div>
+            <p class="link-target">→ ${target}</p>
+          </div>
+          <div class="link-actions">
+            <button class="btn btn-secondary" data-action="toggle">${config.enabled ? 'Pause' : 'Resume'}</button>
+            <button class="btn btn-danger" data-action="remove">Remove</button>
+          </div>
+        </div>`;
+    })
+    .join('');
+  list.innerHTML = rows;
+}
+
+/* ───────────────────────── folder draft helpers ────────────────── */
+function resetDefaultDraft(scope) {
+  state.defaultDraft = { id: null, name: null, create: false };
+  const prefix = scope === 'setup' ? 'setup' : 'dash';
+  const checkbox = el(`${prefix}-create-folder`);
+  if (checkbox) checkbox.checked = false;
+  updateDefaultPicked(scope);
+}
+function updateDefaultPicked(scope) {
+  const prefix = scope === 'setup' ? 'setup' : 'dash';
+  const picked = el(`${prefix}-folder-picked`);
+  const saveBtn = el(`${prefix}-save-folder`);
+  const { id, name, create } = state.defaultDraft;
+  if (!id) {
+    if (picked) {
+      picked.className = 'picked muted';
+      picked.textContent = create
+        ? 'Pick the parent folder for the new folder.'
+        : 'No folder selected yet.';
+    }
+    if (saveBtn) saveBtn.disabled = true;
+    return;
+  }
+  if (picked) {
+    picked.className = 'picked set';
+    picked.textContent = create ? `Create inside: ${name}` : `Selected: ${name}`;
+  }
+  if (saveBtn) saveBtn.disabled = false;
+}
+function updateChannelPicked() {
+  const picked = el('channel-folder-picked');
+  if (!picked) return;
+  if (state.channelDraft.id) {
+    picked.className = 'picked set';
+    picked.textContent = `Selected: ${state.channelDraft.name}`;
+  } else {
+    picked.className = 'picked muted';
+    picked.textContent = 'Folder optional — leave unset to use the default.';
+  }
+}
+
+/* ───────────────────────── actions ─────────────────────────────── */
+function startGoogleAuth() {
+  window.location.href = '/auth/google/start';
+}
+
+async function pickDefaultFolder(scope) {
+  const create = state.defaultDraft.create;
+  try {
+    await openDriveFolderPicker(
+      create
+        ? 'Pick where to create the default-for-discord folder'
+        : 'Pick the default Drive folder',
+      (folder) => {
+        state.defaultDraft.id = folder.id;
+        state.defaultDraft.name = folder.name;
+        updateDefaultPicked(scope);
+      }
+    );
+  } catch (error) {
+    toast(error.message, true);
+  }
+}
+
+async function saveDefaultFolder(scope, button) {
+  const { id, name, create } = state.defaultDraft;
+  if (!id) {
+    toast('Pick a folder first.', true);
+    return;
+  }
+  setBusy(button, true, 'Saving…');
+  try {
+    const response = await apiPost('/api/config-folder', {
+      folderId: id,
+      folderName: name,
+      createDefaultFolder: create,
     });
-  } catch (error) {
-    setDefaultFolderFeedback(error.message, true);
-  } finally {
-    setButtonLoading(button, false);
-  }
-}
-
-async function saveChangedDefaultFolder() {
-  const button = document.getElementById('save-default-folder-btn');
-  setButtonLoading(button, true);
-  setDefaultFolderFeedback('');
-
-  try {
-    const result = await persistDefaultFolderSelection();
-    currentDefaultFolder = result.folder || null;
-    updateCurrentDefaultFolderSummary();
-    resetDefaultFolderDraftSelection();
-    setDefaultFolderFeedback(result.message || 'Default folder updated.');
-  } catch (error) {
-    setDefaultFolderFeedback(error.message, true);
-  } finally {
-    setButtonLoading(button, false);
-    updateChangeDefaultFolderSummary();
-  }
-}
-
-async function loadMappingStep() {
-  const guildSelector = document.getElementById('guild-selector');
-  const channelSelector = document.getElementById('channel-selector');
-  const folderPickerButton = document.getElementById('open-channel-folder-picker');
-  if (!guildSelector || !channelSelector || !folderPickerButton) return;
-
-  setLinkFeedback('');
-  setDefaultFolderFeedback('');
-  resetDefaultFolderDraftSelection();
-
-  guildSelector.innerHTML = '<option value="">Loading servers...</option>';
-  channelSelector.innerHTML = '<option value="">Select a server first</option>';
-  updateChannelFolderSummary();
-  try {
-    currentDefaultFolder = await loadCurrentDefaultFolder();
-    updateCurrentDefaultFolderSummary();
-
-    guilds = await loadGuilds();
-    guildSelector.innerHTML = guilds.length
-      ? '<option value="">Select a server</option>'
-      : '<option value="">Invite the bot to a server first</option>';
-    if (!guilds.length) {
-      channelSelector.disabled = true;
-      document.getElementById('link-channel-btn').disabled = true;
-      document.getElementById('link-channel-default-btn').disabled = true;
+    throwIfUnauthorized(response);
+    if (!response.ok) throw new Error(await errorText(response, 'Failed to save folder'));
+    const result = await response.json();
+    state.defaultFolder = result.folder || { id, name };
+    state.configured.defaultFolder = true;
+    toast(result.message || 'Default folder saved.');
+    if (scope === 'setup') {
+      await refresh();
     } else {
-      document.getElementById('link-channel-btn').disabled = false;
-      document.getElementById('link-channel-default-btn').disabled = false;
-    }
-
-    guilds.forEach((guild) => {
-      const option = document.createElement('option');
-      option.value = guild.id;
-      option.textContent = guild.name;
-      guildSelector.appendChild(option);
-    });
-
-    const links = await loadChannelConfigs();
-    channelConfigs.clear();
-    links.forEach((config) => {
-      channelConfigs.set(`${config.guildId}:${config.channelId}`, config);
-    });
-    renderChannelLinks();
-
-    guildSelector.onchange = onGuildSelectionChange;
-    if (guilds.length > 0) {
-      channelSelector.disabled = true;
+      resetDefaultDraft('dash');
+      show(el('change-default-panel'), false);
+      renderDefaultFolder();
+      renderStatusChips();
     }
   } catch (error) {
-    console.error('Failed to load linked folders step:', error);
-    setLinkFeedback(error.message || 'Failed to load linked folders.', true);
-    guildSelector.innerHTML = '<option value="">Unable to load servers</option>';
-    channelSelector.innerHTML = '<option value="">Unable to load channels</option>';
-    channelSelector.disabled = true;
-    document.getElementById('link-channel-btn').disabled = true;
-    document.getElementById('link-channel-default-btn').disabled = true;
+    toast(error.message, true);
+  } finally {
+    setBusy(button, false);
   }
 }
 
-async function onGuildSelectionChange(event) {
-  const guildSelector = event.target;
-  const channelSelector = document.getElementById('channel-selector');
-
-  if (!guildSelector.value) {
-    channelSelector.innerHTML = '<option value="">Select a server first</option>';
-    channelSelector.disabled = true;
+async function saveDiscordToken(button) {
+  const token = (el('discord-token')?.value || '').trim();
+  if (!token) {
+    toast('Paste the bot token first.', true);
     return;
   }
+  setBusy(button, true, 'Saving…');
+  try {
+    const response = await apiPost('/api/config-discord', { token });
+    throwIfUnauthorized(response);
+    if (!response.ok) throw new Error(await errorText(response, 'Failed to save token'));
+    state.configured.discord = true;
+    toast('Setup complete.');
+    await refresh();
+  } catch (error) {
+    toast(error.message, true);
+  } finally {
+    setBusy(button, false);
+  }
+}
 
-  channelSelector.disabled = false;
-  channelSelector.innerHTML = '<option value="">Loading channels...</option>';
-  const channels = await loadGuildChannels(guildSelector.value);
+async function onGuildChange(event) {
+  const channelSelect = el('channel-selector');
+  if (!channelSelect) return;
+  const guildId = event.target.value;
+  if (!guildId) {
+    channelSelect.innerHTML = '<option value="">Select a server first</option>';
+    channelSelect.disabled = true;
+    return;
+  }
+  channelSelect.disabled = false;
+  channelSelect.innerHTML = '<option value="">Loading channels…</option>';
+  const channels = await loadGuildChannels(guildId);
   if (!channels.length) {
-    channelSelector.innerHTML = '<option value="">No text channels found</option>';
+    channelSelect.innerHTML = '<option value="">No text channels</option>';
+    channelSelect.disabled = true;
     return;
   }
-
-  channelSelector.innerHTML = '<option value="">Select a channel</option>';
+  channelSelect.innerHTML = '<option value="">Select a channel</option>';
   channels.forEach((channel) => {
     const option = document.createElement('option');
     option.value = channel.id;
     option.textContent = channel.name;
-    channelSelector.appendChild(option);
+    channelSelect.appendChild(option);
   });
 }
 
-function renderChannelLinks() {
-  const list = document.getElementById('channel-links-list');
-  if (!list) return;
-
-  if (channelConfigs.size === 0) {
-    list.innerHTML = '<p class="info">No linked channels yet.</p>';
-    return;
-  }
-
-  const rows = Array.from(channelConfigs.values())
-    .sort((a, b) => `${a.guildName}|${a.channelId}`.localeCompare(`${b.guildName}|${b.channelId}`))
-    .map((config) => {
-      const key = `${config.guildId}:${config.channelId}`;
-      const destination = config.useDefault
-        ? 'Default upload folder'
-        : escapeHtml(config.folderName || 'No folder selected');
-      return `
-        <div class="mapping-item">
-          <div class="mapping-item-main">
-            <div class="mapping-item-head">
-              <strong>${escapeHtml(config.guildName || config.guildId)}</strong>
-              <span class="status-pill ${config.enabled ? 'live' : 'paused'}">${config.enabled ? 'Syncing' : 'Paused'}</span>
-            </div>
-            <p class="mapping-subtitle">Channel ${formatChannelLabel(config.channelId)}</p>
-            <p class="mapping-target">Uploads to ${destination}</p>
-          </div>
-          <div class="actions">
-            <button class="btn btn-primary" data-action="toggle" data-key="${key}">
-              ${config.enabled ? 'Stop sync' : 'Start sync'}
-            </button>
-            <button class="btn btn-secondary" data-action="remove" data-key="${key}">Remove</button>
-          </div>
-        </div>
-      `;
-    })
-    .join('');
-
-  list.innerHTML = rows;
-
-  list.querySelectorAll('[data-action="toggle"]').forEach((btn) => {
-    btn.addEventListener('click', async () => {
-      const key = btn.dataset.key;
-      const config = channelConfigs.get(key);
-      if (!config) return;
-
-      const enabled = !config.enabled;
-      btn.disabled = true;
-      try {
-        await updateChannelMapping(config.guildId, config.channelId, {
-          enabled,
-        });
-        await loadMappingStep();
-      } catch (error) {
-        setLinkFeedback(error.message, true);
-      } finally {
-        btn.disabled = false;
-      }
-    });
-  });
-
-  list.querySelectorAll('[data-action="remove"]').forEach((btn) => {
-    btn.addEventListener('click', async () => {
-      const key = btn.dataset.key;
-      const config = channelConfigs.get(key);
-      if (!config) return;
-
-      btn.disabled = true;
-      try {
-        await removeChannelMapping(config.guildId, config.channelId);
-        await loadMappingStep();
-      } catch (error) {
-        setLinkFeedback(error.message, true);
-      } finally {
-        btn.disabled = false;
-      }
-    });
-  });
-}
-
-async function linkChannelToFolder() {
-  const guildId = getInputValue('guild-selector');
-  const channelId = getInputValue('channel-selector');
-  const folderId = selectedChannelFolderId;
-  const folderName = selectedChannelFolderName;
-
-  if (!guildId || !channelId || !folderId || !folderName) {
-    setLinkFeedback('Pick a server, channel, and folder before linking.', true);
-    return;
-  }
-
-  setLinkFeedback('');
-  const button = document.getElementById('link-channel-btn');
-  addLoadingText(button, 'Linking...');
-
+async function pickChannelFolder() {
   try {
-    const response = await apiPost('/api/config-channel', {
-      guildId,
-      channelId,
-      folderId,
-      folderName,
+    await openDriveFolderPicker('Pick a Drive folder for this channel', (folder) => {
+      state.channelDraft = { id: folder.id, name: folder.name };
+      updateChannelPicked();
     });
-    throwIfUnauthorized(response);
-    if (!response.ok) {
-      const message = await parseResponseError(response, 'Failed to link channel');
-      throw new Error(message);
-    }
-
-    await loadMappingStep();
-    setLinkFeedback('Channel linked.');
   } catch (error) {
-    setLinkFeedback(error.message, true);
-  } finally {
-    clearLoadingText(button, 'Link channel to folder');
+    toast(error.message, true);
   }
 }
 
-async function linkChannelToDefaultFolder() {
-  const guildId = getInputValue('guild-selector');
-  const channelId = getInputValue('channel-selector');
-
+async function submitLink({ useDefault }, button) {
+  const guildId = el('guild-selector')?.value || '';
+  const channelId = el('channel-selector')?.value || '';
   if (!guildId || !channelId) {
-    setLinkFeedback('Pick a server and channel before linking.', true);
+    toast('Pick a server and channel first.', true);
     return;
   }
-
-  if (!currentDefaultFolder) {
-    setLinkFeedback('No default folder is configured. Set a default folder first.', true);
+  if (!useDefault && !state.channelDraft.id) {
+    toast('Choose a folder, or use “Link to default folder”.', true);
     return;
   }
+  setBusy(button, true, 'Linking…');
+  try {
+    const payload = useDefault
+      ? { guildId, channelId }
+      : {
+          guildId,
+          channelId,
+          folderId: state.channelDraft.id,
+          folderName: state.channelDraft.name,
+        };
+    const response = await apiPost('/api/config-channel', payload);
+    throwIfUnauthorized(response);
+    if (!response.ok) throw new Error(await errorText(response, 'Failed to link channel'));
+    state.channelDraft = { id: null, name: null };
+    updateChannelPicked();
+    show(el('add-link-panel'), false);
+    toast('Channel linked.');
+    await renderDashboard();
+  } catch (error) {
+    toast(error.message, true);
+  } finally {
+    setBusy(button, false);
+  }
+}
 
-  setLinkFeedback('');
-  const button = document.getElementById('link-channel-default-btn');
-  addLoadingText(button, 'Linking...');
-
+async function toggleLink(config, button) {
+  setBusy(button, true, '…');
   try {
     const response = await apiPost('/api/config-channel', {
-      guildId,
-      channelId,
+      guildId: config.guildId,
+      channelId: config.channelId,
+      enabled: !config.enabled,
+      ...(config.useDefault ? {} : { folderId: config.folderId, folderName: config.folderName }),
     });
     throwIfUnauthorized(response);
-    if (!response.ok) {
-      const message = await parseResponseError(response, 'Failed to link channel');
-      throw new Error(message);
-    }
-
-    await loadMappingStep();
-    setLinkFeedback('Channel linked to default folder.');
+    if (!response.ok) throw new Error(await errorText(response, 'Failed to update link'));
+    await renderDashboard();
   } catch (error) {
-    setLinkFeedback(error.message, true);
-  } finally {
-    clearLoadingText(button, 'Link channel to default folder');
+    toast(error.message, true);
+    setBusy(button, false);
   }
 }
 
-async function updateChannelMapping(guildId, channelId, updates) {
-  const response = await apiPost('/api/config-channel', {
-    guildId,
-    channelId,
-    enabled: updates.enabled,
-    folderId: updates.folderId,
-    folderName: updates.folderName,
-  });
-  throwIfUnauthorized(response);
-  if (!response.ok) {
-    const message = await parseResponseError(response, 'Failed to update channel mapping');
-    throw new Error(message);
-  }
-}
-
-async function removeChannelMapping(guildId, channelId) {
-  const response = await apiPost('/api/config-channel', {
-    guildId,
-    channelId,
-    remove: true,
-  });
-  throwIfUnauthorized(response);
-  if (!response.ok) {
-    const message = await parseResponseError(response, 'Failed to remove channel mapping');
-    throw new Error(message);
-  }
-}
-
-function setupMappingActions() {
-  const button = document.getElementById('link-channel-btn');
-  button?.addEventListener('click', linkChannelToFolder);
-  document
-    .getElementById('link-channel-default-btn')
-    ?.addEventListener('click', linkChannelToDefaultFolder);
-  document
-    .getElementById('open-channel-folder-picker')
-    ?.addEventListener('click', openChannelFolderPicker);
-  document
-    .getElementById('open-change-default-folder-picker')
-    ?.addEventListener('click', openChangeDefaultFolderPicker);
-  document
-    .getElementById('save-default-folder-btn')
-    ?.addEventListener('click', saveChangedDefaultFolder);
-  document.getElementById('change-default-folder-checkbox')?.addEventListener('change', (event) => {
-    createDefaultFolder = event.currentTarget.checked;
-    updateChangeDefaultFolderSummary();
-  });
-}
-
-async function openChannelFolderPicker(event) {
-  const button = event.currentTarget;
-  setButtonLoading(button, true);
-
+async function removeLink(config, button) {
+  setBusy(button, true, '…');
   try {
-    await openDriveFolderPicker('Select a Google Drive folder for this channel', (folder) => {
-      selectedChannelFolderId = folder.id;
-      selectedChannelFolderName = folder.name;
-      updateChannelFolderSummary();
+    const response = await apiPost('/api/config-channel', {
+      guildId: config.guildId,
+      channelId: config.channelId,
+      remove: true,
     });
+    throwIfUnauthorized(response);
+    if (!response.ok) throw new Error(await errorText(response, 'Failed to remove link'));
+    toast('Link removed.');
+    await renderDashboard();
   } catch (error) {
-    showError(error.message);
-  } finally {
-    setButtonLoading(button, false);
+    toast(error.message, true);
+    setBusy(button, false);
   }
 }
 
-function generateInviteLink() {
-  const appId = getMeta('discord-app-id');
-  if (!appId) return;
-
-  const permissions = '3072';
-  const inviteUrl = `https://discord.com/api/oauth2/authorize?client_id=${appId}&permissions=${permissions}&scope=bot%20applications.commands`;
-  document.getElementById('bot-invite').value = inviteUrl;
-}
-
-function copyInviteLink(event) {
-  const inviteInput = document.getElementById('bot-invite');
-  const btn = event.target;
-  const previous = btn.textContent;
-
-  const showCopiedState = () => {
-    btn.textContent = 'Copied';
-    setTimeout(() => {
-      btn.textContent = previous;
-    }, 2000);
+function copyInvite(button) {
+  const input = el('bot-invite');
+  if (!input?.value) return;
+  const done = () => {
+    button.textContent = 'Copied';
+    setTimeout(() => (button.textContent = 'Copy'), 1600);
   };
-
   if (navigator.clipboard?.writeText) {
     navigator.clipboard
-      .writeText(inviteInput.value)
-      .then(showCopiedState)
+      .writeText(input.value)
+      .then(done)
       .catch(() => {
-        inviteInput.select();
+        input.select();
         document.execCommand('copy');
-        showCopiedState();
+        done();
       });
     return;
   }
-
-  inviteInput.select();
+  input.select();
   document.execCommand('copy');
-  showCopiedState();
+  done();
 }
 
-function getMeta(name) {
-  const element = document.querySelector(`meta[name="${name}"]`);
-  return element ? element.content : null;
+/* ───────────────────────── wiring ──────────────────────────────── */
+function bindEvents() {
+  el('google-signin')?.addEventListener('click', startGoogleAuth);
+
+  // setup folder step
+  el('setup-create-folder')?.addEventListener('change', (e) => {
+    state.defaultDraft.create = e.target.checked;
+    updateDefaultPicked('setup');
+  });
+  el('setup-pick-folder')?.addEventListener('click', () => pickDefaultFolder('setup'));
+  el('setup-save-folder')?.addEventListener('click', (e) =>
+    saveDefaultFolder('setup', e.currentTarget)
+  );
+
+  // setup token step
+  el('setup-save-token')?.addEventListener('click', (e) => saveDiscordToken(e.currentTarget));
+  el('discord-token')?.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') saveDiscordToken(el('setup-save-token'));
+  });
+
+  // dashboard: change default folder
+  el('change-default-toggle')?.addEventListener('click', () => {
+    const panel = el('change-default-panel');
+    const opening = panel?.hidden;
+    if (opening) resetDefaultDraft('dash');
+    show(panel, opening);
+  });
+  el('dash-create-folder')?.addEventListener('change', (e) => {
+    state.defaultDraft.create = e.target.checked;
+    updateDefaultPicked('dash');
+  });
+  el('dash-pick-folder')?.addEventListener('click', () => pickDefaultFolder('dash'));
+  el('dash-save-folder')?.addEventListener('click', (e) =>
+    saveDefaultFolder('dash', e.currentTarget)
+  );
+  el('dash-cancel-folder')?.addEventListener('click', () => {
+    resetDefaultDraft('dash');
+    show(el('change-default-panel'), false);
+  });
+
+  // dashboard: add link
+  el('add-link-toggle')?.addEventListener('click', () => {
+    const panel = el('add-link-panel');
+    const opening = panel?.hidden;
+    if (opening) {
+      state.channelDraft = { id: null, name: null };
+      updateChannelPicked();
+    }
+    show(panel, opening);
+  });
+  el('cancel-add-link')?.addEventListener('click', () => show(el('add-link-panel'), false));
+  el('guild-selector')?.addEventListener('change', onGuildChange);
+  el('pick-channel-folder')?.addEventListener('click', pickChannelFolder);
+  el('link-to-folder')?.addEventListener('click', (e) =>
+    submitLink({ useDefault: false }, e.currentTarget)
+  );
+  el('link-to-default')?.addEventListener('click', (e) =>
+    submitLink({ useDefault: true }, e.currentTarget)
+  );
+  el('copy-invite')?.addEventListener('click', (e) => copyInvite(e.currentTarget));
+
+  // delegated actions on the links list
+  el('links-list')?.addEventListener('click', (event) => {
+    const button = event.target.closest('[data-action]');
+    if (!button) return;
+    const row = button.closest('.link-row');
+    const config = state.links.find((c) => `${c.guildId}:${c.channelId}` === row?.dataset.key);
+    if (!config) return;
+    if (button.dataset.action === 'toggle') toggleLink(config, button);
+    if (button.dataset.action === 'remove') removeLink(config, button);
+  });
 }
 
 function syncThemeMeta() {
-  const themeMeta = document.querySelector('meta[name="theme-color"]');
-  if (!themeMeta) return;
-
-  const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-  themeMeta.setAttribute('content', prefersDark ? THEME_META_COLORS.dark : THEME_META_COLORS.light);
-}
-
-async function loadSetupComplete({ rethrow = false } = {}) {
-  try {
-    const responseWithAuth = await apiGet('/api/setup-complete');
-    throwIfUnauthorized(responseWithAuth);
-    if (!responseWithAuth.ok) return null;
-
-    const data = await responseWithAuth.json();
-    document.getElementById('setup-status').textContent = data.message;
-    return data;
-  } catch (error) {
-    console.error('Failed to load setup status:', error);
-    if (rethrow) {
-      throw error;
-    }
-    return null;
-  }
-}
-
-async function resumeSetupFlow() {
-  const params = new URLSearchParams(window.location.search);
-  const explicitStep = Number(params.get('step'));
-
-  if ([2, 3, 4, 5, 6].includes(explicitStep)) {
-    showStep(explicitStep);
-    return;
-  }
-
-  if (params.get('oauth') === 'success') {
-    showStep(3);
-    return;
-  }
-
-  try {
-    const data = await loadSetupComplete({ rethrow: true });
-    const resumeStep = Number(data?.resumeStep);
-
-    if ([2, 3, 4, 5].includes(resumeStep)) {
-      showStep(resumeStep);
-      return;
-    }
-  } catch (error) {
-    showError(error.message || 'Failed to restore setup state.');
-  }
-
-  showStep(2);
+  const meta = document.querySelector('meta[name="theme-color"]');
+  if (!meta) return;
+  const dark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+  meta.setAttribute('content', dark ? THEME_META_COLORS.dark : THEME_META_COLORS.light);
 }
 
 window.addEventListener('DOMContentLoaded', async () => {
   syncThemeMeta();
-  addContinueButtonToFolderStep();
-  setupMappingActions();
-
-  const colorSchemeQuery = window.matchMedia('(prefers-color-scheme: dark)');
-  if (typeof colorSchemeQuery.addEventListener === 'function') {
-    colorSchemeQuery.addEventListener('change', syncThemeMeta);
-  } else if (typeof colorSchemeQuery.addListener === 'function') {
-    colorSchemeQuery.addListener(syncThemeMeta);
-  }
+  window.matchMedia('(prefers-color-scheme: dark)').addEventListener?.('change', syncThemeMeta);
+  bindEvents();
 
   const params = new URLSearchParams(window.location.search);
-  const error = params.get('error');
-  if (error === 'unauthorized_email') {
-    const email = params.get('email') || 'this Google account';
+  if (params.get('error') === 'unauthorized_email') {
+    const email = params.get('email') || 'that account';
     const allowed = params.get('allowed');
-    const allowedText = allowed ? `@${allowed.split(',')[0]}` : 'an approved domain';
+    const domain = allowed ? `@${allowed.split(',')[0]}` : 'an approved domain';
     const used = email.includes('@') ? email.split('@')[1] : email;
-    showError(
-      `This bot is restricted to ${allowedText}. You signed in with ${used}. Please use an approved Google account.`
-    );
-    showStep(2);
-    return;
+    toast(`This bot only accepts ${domain}. You signed in with ${used}.`, true);
+  }
+  // Clean transient OAuth params; routing is decided by server state, not the URL.
+  if (params.has('step') || params.has('oauth') || params.has('error')) {
+    window.history.replaceState({}, '', window.location.pathname);
   }
 
-  await resumeSetupFlow();
+  await refresh();
 });
