@@ -34,26 +34,48 @@ export class ConfigStore {
 
   async setGoogleTokens(tokens) {
     try {
-      const existing = await this.store.get('google_tokens');
-
-      const merged = {
-        ...(existing || {}),
-        ...tokens,
-        obtained_at: Date.now()
-      };
-
-      if (existing?.refresh_token && !merged.refresh_token) {
-        merged.refresh_token = existing.refresh_token;
-      }
-
-      await this.store.setJSON('google_tokens', {
-        ...merged
-      });
+      const result = await this.store.updateJSONIf(
+        'google_tokens',
+        () => true,
+        (existing) => this.mergeGoogleTokens(existing, tokens)
+      );
       logger.info('Google tokens updated');
+      return result.value;
     } catch (error) {
       logger.error('Failed to set Google tokens:', error);
       throw new Error('Failed to store Google tokens');
     }
+  }
+
+  async setGoogleTokensIfRefreshTokenMatches(tokens, expectedRefreshToken) {
+    try {
+      const result = await this.store.updateJSONIf(
+        'google_tokens',
+        (existing) => existing?.refresh_token === expectedRefreshToken,
+        (existing) => this.mergeGoogleTokens(existing, tokens)
+      );
+      if (result.updated) {
+        logger.info('Google tokens refreshed');
+      }
+      return result;
+    } catch (error) {
+      logger.error('Failed to conditionally update Google tokens:', error);
+      throw new Error('Failed to store Google tokens');
+    }
+  }
+
+  mergeGoogleTokens(existing, tokens) {
+    const merged = {
+      ...(existing || {}),
+      ...tokens,
+      obtained_at: Date.now()
+    };
+
+    if (existing?.refresh_token && !merged.refresh_token) {
+      merged.refresh_token = existing.refresh_token;
+    }
+
+    return merged;
   }
 
   async getGuildConfig(guildId) {

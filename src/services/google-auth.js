@@ -2,6 +2,38 @@ import { google } from 'googleapis';
 import { createLogger } from '../utils/logger.js';
 
 const logger = createLogger('GoogleAuth');
+const pendingStoredTokenRefreshes = new Map();
+
+export function refreshStoredGoogleTokens(configStore, tokens) {
+  const refreshToken = tokens?.refresh_token;
+  if (!refreshToken) {
+    return Promise.reject(new Error('Missing Google refresh token'));
+  }
+
+  const pendingRefresh = pendingStoredTokenRefreshes.get(refreshToken);
+  if (pendingRefresh) {
+    return pendingRefresh;
+  }
+
+  const authService = new GoogleAuthService();
+  const refreshPromise = (async () => {
+    const refreshed = await authService.refreshAccessToken(refreshToken);
+    const result = await configStore.setGoogleTokensIfRefreshTokenMatches(
+      refreshed,
+      refreshToken
+    );
+    return result.updated
+      ? { ...result.value, expired: false }
+      : result.value;
+  })();
+  const trackedRefreshPromise = refreshPromise.finally(() => {
+    if (pendingStoredTokenRefreshes.get(refreshToken) === trackedRefreshPromise) {
+      pendingStoredTokenRefreshes.delete(refreshToken);
+    }
+  });
+  pendingStoredTokenRefreshes.set(refreshToken, trackedRefreshPromise);
+  return trackedRefreshPromise;
+}
 
 export class GoogleAuthService {
   constructor() {

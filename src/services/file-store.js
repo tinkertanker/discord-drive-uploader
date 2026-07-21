@@ -4,10 +4,11 @@ import { dirname } from 'node:path';
 
 const logger = createLogger('FileStore');
 
-class FileStore {
+export class FileStore {
   constructor() {
     this.storePath = process.env.CONFIG_STORE_PATH || process.env.APP_DATA_FILE || '/data/bot-config.json';
     this.data = null;
+    this.mutationQueue = Promise.resolve();
   }
 
   async load() {
@@ -63,15 +64,40 @@ class FileStore {
   }
 
   async set(key, value) {
-    await this.load();
-    this.data[key] = value;
-    await this.persist();
+    return this.runMutation(async () => {
+      await this.load();
+      this.data[key] = value;
+      await this.persist();
 
-    logger.info(`Stored ${key} in file-backed store`);
+      logger.info(`Stored ${key} in file-backed store`);
+      return value;
+    });
   }
 
   async setJSON(key, value) {
     return this.set(key, value);
+  }
+
+  async updateJSONIf(key, predicate, updater) {
+    return this.runMutation(async () => {
+      await this.load();
+      const currentValue = this.data[key];
+      if (!predicate(currentValue)) {
+        return { updated: false, value: currentValue };
+      }
+
+      const nextValue = updater(currentValue);
+      this.data[key] = nextValue;
+      await this.persist();
+      logger.info(`Stored ${key} in file-backed store`);
+      return { updated: true, value: nextValue };
+    });
+  }
+
+  runMutation(mutation) {
+    const operation = this.mutationQueue.then(mutation);
+    this.mutationQueue = operation.catch(() => {});
+    return operation;
   }
 
   async list() {

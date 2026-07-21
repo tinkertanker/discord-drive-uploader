@@ -4,6 +4,7 @@ const mockStore = {
   get: jest.fn(),
   set: jest.fn(),
   setJSON: jest.fn(),
+  updateJSONIf: jest.fn(),
   list: jest.fn()
 };
 
@@ -19,6 +20,16 @@ describe('ConfigStore', () => {
   beforeEach(() => {
     configStore = new ConfigStore();
     jest.clearAllMocks();
+    mockStore.updateJSONIf.mockImplementation(async (_key, predicate, updater) => {
+      const currentValue = {
+        access_token: 'old_token',
+        refresh_token: 'refresh_token'
+      };
+      if (!predicate(currentValue)) {
+        return { updated: false, value: currentValue };
+      }
+      return { updated: true, value: updater(currentValue) };
+    });
   });
 
   describe('initialize', () => {
@@ -61,11 +72,54 @@ describe('ConfigStore', () => {
     test('sets Google tokens with timestamp', async () => {
       const tokens = { access_token: 'new_token' };
       
-      await configStore.setGoogleTokens(tokens);
+      const result = await configStore.setGoogleTokens(tokens);
       
-      expect(mockStore.setJSON).toHaveBeenCalledWith('google_tokens', {
-        ...tokens,
+      expect(mockStore.updateJSONIf).toHaveBeenCalledWith(
+        'google_tokens',
+        expect.any(Function),
+        expect.any(Function)
+      );
+      expect(result).toEqual({
+        access_token: 'new_token',
+        refresh_token: 'refresh_token',
         obtained_at: expect.any(Number)
+      });
+    });
+
+    test('updates refreshed tokens only while the refresh token still matches', async () => {
+      const result = await configStore.setGoogleTokensIfRefreshTokenMatches(
+        { access_token: 'refreshed_token' },
+        'refresh_token'
+      );
+
+      expect(result.updated).toBe(true);
+      expect(result.value).toEqual({
+        access_token: 'refreshed_token',
+        refresh_token: 'refresh_token',
+        obtained_at: expect.any(Number)
+      });
+    });
+
+    test('does not update refreshed tokens after the refresh token changes', async () => {
+      mockStore.updateJSONIf.mockImplementationOnce(async (_key, predicate) => {
+        const currentValue = {
+          access_token: 'reconnected_token',
+          refresh_token: 'replacement_refresh_token'
+        };
+        return { updated: predicate(currentValue), value: currentValue };
+      });
+
+      const result = await configStore.setGoogleTokensIfRefreshTokenMatches(
+        { access_token: 'stale_refreshed_token' },
+        'refresh_token'
+      );
+
+      expect(result).toEqual({
+        updated: false,
+        value: {
+          access_token: 'reconnected_token',
+          refresh_token: 'replacement_refresh_token'
+        }
       });
     });
   });

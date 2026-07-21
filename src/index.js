@@ -7,7 +7,7 @@ import { URL } from 'node:url';
 import { fileURLToPath } from 'node:url';
 import { dirname } from 'node:path';
 import { config } from 'dotenv';
-import { GoogleAuthService } from './services/google-auth.js';
+import { GoogleAuthService, refreshStoredGoogleTokens } from './services/google-auth.js';
 import { ConfigStore } from './services/config-store.js';
 import { GoogleDriveService } from './services/google-drive.js';
 import { DiscordBot } from './handlers/message-handler.js';
@@ -265,8 +265,7 @@ async function handleGoogleFolders(tokens) {
     if (!tokens.refresh_token) {
       throw new Error('Missing Google refresh token');
     }
-    const refreshed = await authService.refreshAccessToken(tokens.refresh_token);
-    await configStore.setGoogleTokens(refreshed);
+    const refreshed = await refreshStoredGoogleTokens(configStore, tokens);
     authService.setCredentials(refreshed);
   } else {
     authService.setCredentials(tokens);
@@ -290,10 +289,7 @@ async function getGoogleTokensForClient() {
     throw new Error('Missing Google refresh token');
   }
 
-  const authService = new GoogleAuthService();
-  const refreshed = await authService.refreshAccessToken(tokens.refresh_token);
-  await configStore.setGoogleTokens(refreshed);
-  return refreshed;
+  return refreshStoredGoogleTokens(configStore, tokens);
 }
 
 async function getGoogleDriveServiceForClient() {
