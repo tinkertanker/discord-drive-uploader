@@ -2,6 +2,7 @@ node_modules
 npm-debug.log
 test-results
 coverage
+data
 .env
 .git
 .github

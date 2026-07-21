@@ -2,6 +2,18 @@
 
 Self-hosted Discord bot and setup UI for uploading photos and videos from Discord channels into Google Drive folders.
 
+This repository is intended to be cloned or forked and run under your own Google Cloud and Discord accounts. It does not provide a hosted service: you own the credentials, deployment, and persisted configuration.
+
+## Setup At A Glance
+
+1. Create Google Cloud OAuth credentials and a Picker API key.
+2. Create a Discord application and bot, then invite it to your server.
+3. Copy `.env.example` to `.env` and add your credentials.
+4. Start the container and open the setup UI.
+5. Sign in as an allowed administrator, connect Drive, enter the bot token, and map channels.
+
+The detailed instructions below are also suitable context for a coding agent helping you deploy or adapt this project. See [Working With A Coding Agent](#working-with-a-coding-agent) for a concise handoff.
+
 ## What It Does
 
 - Connects Google Drive to a Discord bot
@@ -35,6 +47,7 @@ Self-hosted Discord bot and setup UI for uploading photos and videos from Discor
 6. Configure the consent screen if Google Cloud asks you to do so first.
    - For internal-only use, configure it for your organisation.
    - For external use, add the appropriate test users during development.
+   - Google refresh tokens for an external app left in `Testing` can expire after seven days. Publish the app when you are ready for a long-running deployment, subject to Google's consent and verification requirements.
 7. Open `APIs & Services` -> `Credentials`.
 8. Create an `OAuth client ID`.
    - Application type: `Web application`
@@ -100,9 +113,13 @@ Required:
 Optional:
 
 - `ALLOWED_EMAIL_DOMAINS`
-  Comma-separated list of Google account domains allowed to connect the shared Drive account.
+  Comma-separated list of Google account domains allowed to connect the shared Drive account. Replace the example domain with your own. Set it to `,` to rely only on `ADMIN_EMAILS` without an additional domain restriction.
 - `CONFIG_STORE_PATH`
   Overrides where configuration is stored. Defaults to `/data/bot-config.json`.
+- `PORT`
+  HTTP port inside the process. Defaults to `3000`; the Docker examples assume that value.
+- `PRODUCTION_HOST`
+  Public hostname consumed by the included reverse-proxy Compose preset. It is not used by the Node.js process.
 
 Not set in `.env`:
 
@@ -117,13 +134,63 @@ cp .env.example .env
 
 ## Running the App
 
-### Docker
+### Docker On One Machine
 
-Start the app with Docker Compose:
+This is the most portable Docker setup. It publishes the app directly on port 3000 and stores credentials and mappings in `./data`:
+
+```bash
+cp .env.example .env
+# Edit .env before continuing.
+mkdir -p data
+docker build -t discord-drive-uploader .
+docker run -d \
+  --name discord-drive-uploader \
+  --restart unless-stopped \
+  --env-file .env \
+  -p 3000:3000 \
+  -v "$PWD/data:/data" \
+  discord-drive-uploader
+```
+
+Then open `http://localhost:3000`. View startup errors with:
+
+```bash
+docker logs -f discord-drive-uploader
+```
+
+To stop and remove the container without deleting its saved configuration:
+
+```bash
+docker rm -f discord-drive-uploader
+```
+
+### Docker Compose Behind A Reverse Proxy
+
+The included `docker-compose.yml` is a deployment preset for an existing [`nginx-proxy`](https://github.com/nginx-proxy/nginx-proxy)-style setup. Unlike the portable command above, it:
+
+- exposes port 3000 only to Docker, not directly to the host;
+- expects an external Docker network named `devtksg`; and
+- uses `PRODUCTION_HOST` for the proxy hostname.
+
+Create the network once if your reverse proxy does not already create it:
+
+```bash
+docker network create devtksg
+```
+
+Set the public host in `.env`, then start the app:
+
+```dotenv
+PRODUCTION_HOST=photos.example.com
+```
 
 ```bash
 docker compose up --build -d
 ```
+
+Your reverse proxy must terminate HTTPS, join the same Docker network, route the hostname to port 3000, and send `X-Forwarded-Proto: https`. Set `GOOGLE_REDIRECT_URI` to `https://photos.example.com/auth/google/callback` and register that exact URI in Google Cloud.
+
+If you do not already run a compatible reverse proxy, use the portable Docker command and put your preferred HTTPS proxy or tunnel in front of port 3000 instead of copying this Compose topology.
 
 ### Non-Docker
 
@@ -174,6 +241,17 @@ Admin sign-in and Drive authorisation are separate. Signing in proves who may ma
 If `ALLOWED_EMAIL_DOMAINS` is configured, only Google accounts from those domains can connect the shared Drive account.
 
 The setup wizard will also ask for the Discord bot token. That value comes from the `Bot` tab in the Discord Developer Portal, not from the `.env` file.
+
+### Verify The Installation
+
+After setup:
+
+1. The linked folders page should list the configured server and channel.
+2. `/upload-info` in that Discord channel should show its destination.
+3. Post a small supported image with optional message text.
+4. Confirm that the bot replies with a Drive link and the file appears in today's dated subfolder.
+
+Do not use `/test-upload` as the only check: a real attachment also verifies Discord's message-content intent, attachment download, Drive upload, and confirmation reply.
 
 ## Discord Bot Permissions
 
@@ -281,6 +359,51 @@ Checks:
 npm run lint
 npm test
 ```
+
+## Operating A Self-Hosted Instance
+
+### Security
+
+- Use HTTPS for any deployment reachable beyond your own machine. The app sets secure admin cookies when the request or `X-Forwarded-Proto` indicates HTTPS.
+- Keep `ADMIN_EMAILS` narrow. Every listed Google account can view and change the bot's Drive and Discord configuration.
+- Keep `.env` and `data/bot-config.json` private. The data file contains Google OAuth tokens, the Discord bot token, folder mappings, and server configuration.
+- Never commit `.env` or `data/`. Both are ignored by this repository, but verify before pushing a fork.
+- Restrict the Google API key by website origin and API in Google Cloud. The OAuth client secret and Discord bot token must never be sent to the browser or exposed by the reverse proxy.
+- If a bot token, client secret, session secret, or saved configuration is exposed, rotate the affected credential rather than only deleting the leaked file.
+
+### Backups And Upgrades
+
+All mutable application state is in the file selected by `CONFIG_STORE_PATH`, `/data/bot-config.json` by default. Back up the mounted `data` directory with permissions that protect its secrets.
+
+To upgrade a direct Docker installation:
+
+```bash
+git pull --ff-only
+docker build -t discord-drive-uploader .
+docker rm -f discord-drive-uploader
+# Run the same docker run command from the initial setup.
+```
+
+Removing or rebuilding the container is safe as long as the same host `data` directory is mounted back at `/data`. Deleting that directory requires reconnecting Google, re-entering the Discord bot token, and rebuilding channel mappings.
+
+## Working With A Coding Agent
+
+You can point an agent at this repository and ask it to follow `AGENTS.md` and this README. Include your intended deployment style (direct Docker, the included Compose proxy setup, or another platform) and public callback URL; do not paste live credentials into the prompt.
+
+A useful handoff prompt is:
+
+> Help me deploy or adapt this repository. Read `AGENTS.md`, `README.md`, `.env.example`, `docker-compose.yml`, and the relevant source before changing anything. My deployment is `<direct Docker / reverse proxy / other>`, my public origin is `<URL>`, and I want `<outcome>`. Preserve admin authentication and persistent `/data` storage. Do not print or commit credentials. Run `npm run lint` and `npm test` after behavior changes.
+
+For implementation work, the main ownership boundaries are:
+
+- `src/index.js`: HTTP server, Google OAuth, admin authentication, setup APIs, and static UI routing
+- `src/handlers/message-handler.js`: Discord client, slash-command registration, attachment handling, and upload replies
+- `src/services/google-drive.js`: Drive folder and upload operations
+- `src/services/config-store.js` and `src/services/file-store.js`: persisted tokens, bot token, defaults, and channel mappings
+- `public/`: setup and administration UI
+- `tests/`: Jest unit and integration coverage
+
+The application deliberately has no database or build pipeline. Prefer the existing Node.js, file-backed, Docker-first architecture unless your requested change genuinely needs a different boundary.
 
 ## Architecture
 

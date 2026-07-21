@@ -22,6 +22,9 @@ netlify/functions-serve/
 .env.test.local
 .env.production.local
 
+# Persistent application credentials and configuration
+data/
+
 # Logs
 logs/
 *.log
