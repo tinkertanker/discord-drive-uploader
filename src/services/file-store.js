@@ -4,7 +4,7 @@ import { dirname } from 'node:path';
 
 const logger = createLogger('FileStore');
 
-class FileStore {
+export class FileStore {
   constructor() {
     this.storePath = process.env.CONFIG_STORE_PATH || process.env.APP_DATA_FILE || '/data/bot-config.json';
     this.data = null;
