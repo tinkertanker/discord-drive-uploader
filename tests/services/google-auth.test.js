@@ -18,7 +18,7 @@ jest.unstable_mockModule('googleapis', () => ({
   }
 }));
 
-const { GoogleAuthService } = await import('../../src/services/google-auth.js');
+const { GoogleAuthService, refreshStoredGoogleTokens } = await import('../../src/services/google-auth.js');
 
 describe('GoogleAuthService', () => {
   let authService;
@@ -90,6 +90,63 @@ describe('GoogleAuthService', () => {
       
       await expect(authService.refreshAccessToken('bad_token'))
         .rejects.toThrow('Failed to refresh Google access token');
+    });
+  });
+
+  describe('refreshStoredGoogleTokens', () => {
+    test('coalesces concurrent refreshes and stores the result once', async () => {
+      let resolveRefresh;
+      mockOAuth2Client.refreshAccessToken.mockReturnValueOnce(new Promise((resolve) => {
+        resolveRefresh = resolve;
+      }));
+      const configStore = {
+        setGoogleTokens: jest.fn().mockResolvedValue(undefined)
+      };
+      const expiredTokens = {
+        access_token: 'expired-token',
+        refresh_token: 'shared-refresh-token',
+        expired: true
+      };
+
+      const firstRefresh = refreshStoredGoogleTokens(configStore, expiredTokens);
+      const secondRefresh = refreshStoredGoogleTokens(configStore, expiredTokens);
+      expect(mockOAuth2Client.refreshAccessToken).toHaveBeenCalledTimes(1);
+
+      resolveRefresh({ credentials: { access_token: 'fresh-token' } });
+      const [firstTokens, secondTokens] = await Promise.all([firstRefresh, secondRefresh]);
+
+      expect(configStore.setGoogleTokens).toHaveBeenCalledTimes(1);
+      expect(firstTokens).toEqual({
+        access_token: 'fresh-token',
+        refresh_token: 'shared-refresh-token',
+        expired: false
+      });
+      expect(secondTokens).toEqual(firstTokens);
+    });
+
+    test('allows a new refresh attempt after a shared refresh fails', async () => {
+      const configStore = {
+        setGoogleTokens: jest.fn().mockResolvedValue(undefined)
+      };
+      const expiredTokens = {
+        refresh_token: 'retry-refresh-token',
+        expired: true
+      };
+      mockOAuth2Client.refreshAccessToken
+        .mockRejectedValueOnce(new Error('Temporary failure'))
+        .mockResolvedValueOnce({ credentials: { access_token: 'recovered-token' } });
+
+      await expect(refreshStoredGoogleTokens(configStore, expiredTokens))
+        .rejects.toThrow('Failed to refresh Google access token');
+      await expect(refreshStoredGoogleTokens(configStore, expiredTokens))
+        .resolves.toEqual({
+          refresh_token: 'retry-refresh-token',
+          access_token: 'recovered-token',
+          expired: false
+        });
+
+      expect(mockOAuth2Client.refreshAccessToken).toHaveBeenCalledTimes(2);
+      expect(configStore.setGoogleTokens).toHaveBeenCalledTimes(1);
     });
   });
 });

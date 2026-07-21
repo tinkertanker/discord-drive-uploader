@@ -1,4 +1,5 @@
 import { jest } from '@jest/globals';
+import { PassThrough, Readable } from 'node:stream';
 
 const mockDriveFiles = {
   create: jest.fn(),
@@ -37,15 +38,86 @@ describe('GoogleDriveService', () => {
       'image/png'
     );
 
-    expect(mockDriveFiles.create).toHaveBeenCalledWith(expect.objectContaining({
-      fields: 'id, name, webViewLink',
-      supportsAllDrives: true,
-      resource: {
-        name: 'photo.png',
-        parents: ['folder123']
-      }
-    }));
+    expect(mockDriveFiles.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        fields: 'id, name, webViewLink',
+        supportsAllDrives: true,
+        resource: {
+          name: 'photo.png',
+          parents: ['folder123']
+        }
+      }),
+      expect.objectContaining({ signal: expect.any(Object) })
+    );
     expect(result.id).toBe('file123');
+  });
+
+  test('passes streams directly to Drive without buffering them', async () => {
+    mockDriveFiles.create.mockResolvedValueOnce({
+      data: { id: 'file456', name: 'video.mp4' }
+    });
+    const stream = Readable.from(['video data']);
+
+    await driveService.uploadFile(stream, 'video.mp4', 'folder123', 'video/mp4');
+
+    expect(mockDriveFiles.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        media: {
+          mimeType: 'video/mp4',
+          body: stream
+        }
+      }),
+      expect.objectContaining({ signal: expect.any(Object) })
+    );
+  });
+
+  test('aborts and rejects when the source stream fails mid-upload', async () => {
+    const stream = new PassThrough();
+    let uploadSignal;
+    mockDriveFiles.create.mockImplementationOnce((_params, options) => {
+      uploadSignal = options.signal;
+      return new Promise(() => {});
+    });
+
+    const uploadPromise = driveService.uploadFile(
+      stream,
+      'video.mp4',
+      'folder123',
+      'video/mp4'
+    );
+    stream.destroy(new Error('Discord connection reset'));
+
+    await expect(uploadPromise).rejects.toThrow('Failed to upload file to Google Drive');
+    expect(uploadSignal.aborted).toBe(true);
+  });
+
+  test('aborts an upload that exceeds its time limit', async () => {
+    jest.useFakeTimers();
+    const timedDriveService = new GoogleDriveService(
+      { fake: 'auth' },
+      { uploadTimeoutMs: 100 }
+    );
+    const stream = new PassThrough();
+    let uploadSignal;
+    mockDriveFiles.create.mockImplementationOnce((_params, options) => {
+      uploadSignal = options.signal;
+      return new Promise(() => {});
+    });
+
+    try {
+      const uploadPromise = timedDriveService.uploadFile(
+        stream,
+        'video.mp4',
+        'folder123',
+        'video/mp4'
+      );
+      jest.advanceTimersByTime(100);
+
+      await expect(uploadPromise).rejects.toThrow('Failed to upload file to Google Drive');
+      expect(uploadSignal.aborted).toBe(true);
+    } finally {
+      jest.useRealTimers();
+    }
   });
 
   test('lists files in a folder with shared drive support enabled', async () => {
@@ -239,5 +311,35 @@ describe('GoogleDriveService', () => {
 
     await expect(firstEnsure).resolves.toEqual({ id: 'folder999', name: '2026-03-16' });
     await expect(secondEnsure).resolves.toEqual({ id: 'folder999', name: '2026-03-16' });
+  });
+
+  test('reuses a recently resolved folder without another Drive lookup', async () => {
+    mockDriveFiles.list.mockResolvedValueOnce({
+      data: {
+        files: [{ id: 'folder456', name: '2026-03-16', parents: ['parent123'] }]
+      }
+    });
+
+    const firstFolder = await driveService.ensureFolder('2026-03-16', 'parent123');
+    const secondFolder = await driveService.ensureFolder('2026-03-16', 'parent123');
+
+    expect(mockDriveFiles.list).toHaveBeenCalledTimes(1);
+    expect(secondFolder).toBe(firstFolder);
+  });
+
+  test('reuses a recent filename list without exposing mutable cache state', async () => {
+    mockDriveFiles.list.mockResolvedValueOnce({
+      data: {
+        files: [{ id: 'file123', name: 'photo.png' }]
+      }
+    });
+
+    const firstFilenames = await driveService.getKnownFilenames('folder123');
+    firstFilenames.push('photo_1.png');
+    const secondFilenames = await driveService.getKnownFilenames('folder123');
+
+    expect(mockDriveFiles.list).toHaveBeenCalledTimes(1);
+    expect(secondFilenames).not.toBe(firstFilenames);
+    expect(secondFilenames).toEqual(['photo.png']);
   });
 });

@@ -5,9 +5,19 @@ import { Readable } from 'stream';
 const logger = createLogger('GoogleDrive');
 
 export class GoogleDriveService {
-  constructor(authClient) {
+  constructor(authClient, {
+    folderCacheTtlMs = 5 * 60 * 1000,
+    filenameCacheTtlMs = 15 * 1000,
+    uploadTimeoutMs = 15 * 60 * 1000
+  } = {}) {
     this.drive = google.drive({ version: 'v3', auth: authClient });
     this.pendingFolderEnsures = new Map();
+    this.pendingFilenameLists = new Map();
+    this.folderCache = new Map();
+    this.filenameCache = new Map();
+    this.folderCacheTtlMs = folderCacheTtlMs;
+    this.filenameCacheTtlMs = filenameCacheTtlMs;
+    this.uploadTimeoutMs = uploadTimeoutMs;
   }
 
   escapeDriveQueryValue(value) {
@@ -141,6 +151,13 @@ export class GoogleDriveService {
 
   async ensureFolder(name, parentId = null) {
     const folderKey = `${parentId || 'root'}:${name}`;
+    const cachedFolder = this.folderCache.get(folderKey);
+    if (cachedFolder && cachedFolder.expiresAt > Date.now()) {
+      return cachedFolder.folder;
+    }
+
+    this.folderCache.delete(folderKey);
+
     const pendingEnsure = this.pendingFolderEnsures.get(folderKey);
     if (pendingEnsure) {
       return pendingEnsure;
@@ -163,13 +180,37 @@ export class GoogleDriveService {
     this.pendingFolderEnsures.set(folderKey, ensurePromise);
 
     try {
-      return await ensurePromise;
+      const folder = await ensurePromise;
+      this.folderCache.set(folderKey, {
+        folder,
+        expiresAt: Date.now() + this.folderCacheTtlMs
+      });
+      return folder;
     } finally {
       this.pendingFolderEnsures.delete(folderKey);
     }
   }
 
-  async uploadFile(fileBuffer, fileName, folderId, mimeType) {
+  async uploadFile(fileBody, fileName, folderId, mimeType) {
+    const mediaBody = Buffer.isBuffer(fileBody) ? Readable.from(fileBody) : fileBody;
+    const abortController = new AbortController();
+    let rejectUploadFailure;
+    let uploadCompleted = false;
+
+    const uploadFailure = new Promise((_, reject) => {
+      rejectUploadFailure = reject;
+    });
+    const failUpload = (error) => {
+      if (abortController.signal.aborted) return;
+      abortController.abort(error);
+      rejectUploadFailure(error);
+    };
+    const uploadTimer = setTimeout(() => {
+      failUpload(new Error(`Upload timed out after ${this.uploadTimeoutMs}ms`));
+    }, this.uploadTimeoutMs);
+    uploadTimer.unref?.();
+    mediaBody.once('error', failUpload);
+
     try {
       const fileMetadata = {
         name: fileName,
@@ -178,49 +219,33 @@ export class GoogleDriveService {
 
       const media = {
         mimeType,
-        body: Readable.from(fileBuffer)
+        body: mediaBody
       };
 
-      const response = await this.drive.files.create({
-        resource: fileMetadata,
-        media: media,
-        fields: 'id, name, webViewLink',
-        supportsAllDrives: true
-      });
+      const response = await Promise.race([
+        this.drive.files.create({
+          resource: fileMetadata,
+          media: media,
+          fields: 'id, name, webViewLink',
+          supportsAllDrives: true
+        }, {
+          signal: abortController.signal
+        }),
+        uploadFailure
+      ]);
+      uploadCompleted = true;
 
       logger.info(`Uploaded file: ${fileName} with ID: ${response.data.id}`);
       return response.data;
     } catch (error) {
       logger.error('Failed to upload file:', error);
       throw new Error('Failed to upload file to Google Drive');
-    }
-  }
-
-  async uploadLargeFile(fileBuffer, fileName, folderId, mimeType) {
-    try {
-      const fileSize = fileBuffer.length;
-      logger.info(`Starting resumable upload for ${fileName} (${fileSize} bytes)`);
-
-      const fileMetadata = {
-        name: fileName,
-        parents: [folderId]
-      };
-
-      const response = await this.drive.files.create({
-        resource: fileMetadata,
-        media: {
-          mimeType,
-          body: Readable.from(fileBuffer)
-        },
-        fields: 'id, name, webViewLink',
-        supportsAllDrives: true
-      });
-
-      logger.info(`Successfully uploaded large file: ${fileName}`);
-      return response.data;
-    } catch (error) {
-      logger.error('Failed to upload large file:', error);
-      throw new Error('Failed to upload large file to Google Drive');
+    } finally {
+      clearTimeout(uploadTimer);
+      mediaBody.off('error', failUpload);
+      if (!uploadCompleted && typeof mediaBody.destroy === 'function') {
+        mediaBody.destroy();
+      }
     }
   }
 
@@ -239,6 +264,36 @@ export class GoogleDriveService {
     } catch (error) {
       logger.error('Failed to get files by folder:', error);
       throw new Error('Failed to list files in folder');
+    }
+  }
+
+  async getKnownFilenames(folderId) {
+    const cachedFilenames = this.filenameCache.get(folderId);
+    if (cachedFilenames && cachedFilenames.expiresAt > Date.now()) {
+      return [...cachedFilenames.filenames];
+    }
+
+    this.filenameCache.delete(folderId);
+
+    const pendingList = this.pendingFilenameLists.get(folderId);
+    if (pendingList) {
+      return [...await pendingList];
+    }
+
+    const listPromise = this.getFilesByFolder(folderId).then((files) => {
+      const filenames = files.map((file) => file.name);
+      this.filenameCache.set(folderId, {
+        filenames,
+        expiresAt: Date.now() + this.filenameCacheTtlMs
+      });
+      return filenames;
+    });
+    this.pendingFilenameLists.set(folderId, listPromise);
+
+    try {
+      return [...await listPromise];
+    } finally {
+      this.pendingFilenameLists.delete(folderId);
     }
   }
 }

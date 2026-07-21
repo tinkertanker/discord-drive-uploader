@@ -1,6 +1,6 @@
 import { Client, GatewayIntentBits, REST, Routes } from 'discord.js';
 import { ConfigStore } from '../services/config-store.js';
-import { GoogleAuthService } from '../services/google-auth.js';
+import { GoogleAuthService, refreshStoredGoogleTokens } from '../services/google-auth.js';
 import { GoogleDriveService } from '../services/google-drive.js';
 import { formatUploadDate, generateFileName, getUploadTimeZone, reserveDuplicateFilename } from '../utils/file-namer.js';
 import { formatUploadStatusMessage } from '../utils/upload-status.js';
@@ -18,6 +18,10 @@ export class DiscordBot {
     this.client = null;
     this.configStore = new ConfigStore();
     this.discordToken = null;
+    this.driveContext = null;
+    this.filenameReservations = new Map();
+    this.successfulFilenameReservationMs = 30 * 1000;
+    this.attachmentFetchTimeoutMs = 2 * 60 * 1000;
   }
 
   async initialize() {
@@ -98,48 +102,65 @@ export class DiscordBot {
 
     logger.info(`Processing ${supportedAttachments.length} attachments from channel ${channel.name}`);
 
+    // Let the user know immediately while Drive setup happens in parallel.
+    const emoji = supportedAttachments.length === 1 ? '📤' : '📤📤';
+    const uploadingMessagePromise = this.sendUploadStatusReply(
+      message,
+      `${emoji} Uploading ${supportedAttachments.length} file(s)...`
+    );
+
     const uploadTimeZone = getUploadTimeZone();
     const uploadDate = formatUploadDate(message.createdAt, uploadTimeZone);
-    const { driveService, uploadFolder, existingFilenames } = await this.prepareDriveUploadContext(
-      channelConfig.driveFolderId,
-      uploadDate
-    );
-    const reservedFilenames = supportedAttachments.map((attachment) => {
-      const baseFilename = generateFileName(
+    let uploadContext;
+    try {
+      uploadContext = await this.prepareDriveUploadContext(channelConfig.driveFolderId, uploadDate);
+    } catch (error) {
+      logger.error(`Failed to prepare Drive upload for message ${message.id}:`, error);
+      const uploadingMessage = await uploadingMessagePromise;
+      if (uploadingMessage) {
+        try {
+          await uploadingMessage.edit('❌ Upload failed');
+        } catch (replyError) {
+          logger.warn(`Failed to update upload status reply for message ${message.id}:`, replyError);
+        }
+      }
+      return;
+    }
+
+    const { driveService, uploadFolder, existingFilenames } = uploadContext;
+    const baseFilenames = supportedAttachments.map((attachment) =>
+      generateFileName(
         attachment.name,
         message.content,
         message.createdAt,
         message.member?.displayName || message.author?.globalName || message.author?.username || '',
         uploadTimeZone
-      );
-
-      return reserveDuplicateFilename(baseFilename, existingFilenames);
-    });
+      )
+    );
+    const reservedFilenames = this.reserveUploadFilenames(
+      uploadFolder.id,
+      baseFilenames,
+      existingFilenames
+    );
 
     const uploadTasks = supportedAttachments.map((attachment, index) =>
       this.createUploadTask(attachment, reservedFilenames[index], uploadFolder.id, driveService)
     );
 
-    // Send initial response
-    const emoji = supportedAttachments.length === 1 ? '📤' : '📤📤';
-    let uploadingMessage = null;
-    try {
-      await this.ensureDiscordRestToken();
-      uploadingMessage = await message.reply(`${emoji} Uploading ${supportedAttachments.length} file(s)...`);
-    } catch (error) {
-      logger.warn(`Failed to send upload status reply for message ${message.id}:`, error);
-    }
-
-    // Wait for uploads to complete
-    const results = await Promise.allSettled(
+    const resultsPromise = Promise.allSettled(
       uploadTasks.map(task => task())
     );
+    const uploadingMessage = await uploadingMessagePromise;
+
+    // Wait for uploads to complete
+    const results = await resultsPromise;
 
     const successful = results.filter(r => r.status === 'fulfilled').length;
     const failed = results.filter(r => r.status === 'rejected').length;
     const uploadedFilenames = results
       .filter((result) => result.status === 'fulfilled')
       .map((result) => result.value.fileName);
+    this.finalizeFilenameReservations(uploadFolder.id, reservedFilenames, uploadedFilenames);
 
     // Update response
     let responseText = '';
@@ -183,47 +204,144 @@ export class DiscordBot {
     }
   }
 
+  async sendUploadStatusReply(message, text) {
+    try {
+      await this.ensureDiscordRestToken();
+      return await message.reply(text);
+    } catch (error) {
+      logger.warn(`Failed to send upload status reply for message ${message.id}:`, error);
+      return null;
+    }
+  }
+
   async prepareDriveUploadContext(folderId, uploadDate) {
+    const googleTokens = await this.getGoogleTokensForUpload();
+    const driveService = this.getDriveService(googleTokens);
+    const uploadFolder = await driveService.ensureFolder(uploadDate, folderId);
+    const existingFilenames = await driveService.getKnownFilenames(uploadFolder.id);
+
+    return {
+      driveService,
+      uploadFolder,
+      existingFilenames
+    };
+  }
+
+  async getGoogleTokensForUpload() {
     const googleTokens = await this.configStore.getGoogleTokens();
     if (!googleTokens) {
       throw new Error('Google Drive not configured');
     }
 
-    const authService = new GoogleAuthService();
-    if (googleTokens.expired && googleTokens.refresh_token) {
-      const refreshed = await authService.refreshAccessToken(googleTokens.refresh_token);
-      await this.configStore.setGoogleTokens(refreshed);
-      authService.setCredentials(refreshed);
-    } else {
-      authService.setCredentials(googleTokens);
+    if (!googleTokens.expired) {
+      return googleTokens;
     }
 
-    const driveService = new GoogleDriveService(authService.getAuthClient());
-    const uploadFolder = await driveService.ensureFolder(uploadDate, folderId);
-    const existingFiles = await driveService.getFilesByFolder(uploadFolder.id);
+    if (!googleTokens.refresh_token) {
+      throw new Error('Google Drive authorisation expired; reconnect Google Drive');
+    }
 
-    return {
-      driveService,
-      uploadFolder,
-      existingFilenames: existingFiles.map((file) => file.name)
+    return refreshStoredGoogleTokens(this.configStore, googleTokens);
+  }
+
+  getDriveService(googleTokens) {
+    if (this.driveContext?.accessToken === googleTokens.access_token) {
+      return this.driveContext.service;
+    }
+
+    const authService = new GoogleAuthService();
+    authService.setCredentials(googleTokens);
+    const service = new GoogleDriveService(authService.getAuthClient());
+    this.driveContext = {
+      accessToken: googleTokens.access_token,
+      service
     };
+    return service;
+  }
+
+  reserveUploadFilenames(folderId, baseFilenames, existingFilenames) {
+    let reservations = this.filenameReservations.get(folderId);
+    if (!reservations) {
+      reservations = new Set();
+      this.filenameReservations.set(folderId, reservations);
+    }
+
+    const unavailableFilenames = [...existingFilenames, ...reservations];
+    const reservedFilenames = baseFilenames.map((filename) =>
+      reserveDuplicateFilename(filename, unavailableFilenames)
+    );
+    reservedFilenames.forEach((filename) => reservations.add(filename));
+    return reservedFilenames;
+  }
+
+  finalizeFilenameReservations(folderId, reservedFilenames, successfulFilenames) {
+    const reservations = this.filenameReservations.get(folderId);
+    if (!reservations) return;
+
+    const successful = new Set(successfulFilenames);
+    reservedFilenames.forEach((filename) => {
+      if (!successful.has(filename)) {
+        reservations.delete(filename);
+        return;
+      }
+
+      const releaseTimer = setTimeout(() => {
+        reservations.delete(filename);
+        if (reservations.size === 0) {
+          this.filenameReservations.delete(folderId);
+        }
+      }, this.successfulFilenameReservationMs);
+      releaseTimer.unref?.();
+    });
+
+    if (reservations.size === 0) {
+      this.filenameReservations.delete(folderId);
+    }
   }
 
   createUploadTask(attachment, finalFilename, folderId, driveService) {
     return async () => {
       try {
         // Download file
-        const response = await fetch(attachment.url);
+        const fetchAbortController = new AbortController();
+        let rejectFetchTimeout;
+        const fetchTimeoutFailure = new Promise((_, reject) => {
+          rejectFetchTimeout = reject;
+        });
+        const fetchTimer = setTimeout(() => {
+          const timeoutError = new Error(
+            `Attachment download timed out after ${this.attachmentFetchTimeoutMs}ms`
+          );
+          fetchAbortController.abort(timeoutError);
+          rejectFetchTimeout(timeoutError);
+        }, this.attachmentFetchTimeoutMs);
+        fetchTimer.unref?.();
+
+        let response;
+        try {
+          response = await Promise.race([
+            fetch(attachment.url, { signal: fetchAbortController.signal }),
+            fetchTimeoutFailure
+          ]);
+        } finally {
+          clearTimeout(fetchTimer);
+        }
+
         if (!response.ok) {
           throw new Error(`Failed to download attachment: ${response.statusText}`);
         }
 
-        const buffer = Buffer.from(await response.arrayBuffer());
+        if (!response.body) {
+          throw new Error('Failed to download attachment: empty response body');
+        }
 
-        // Upload to Drive
-        const uploadResult = buffer.length > 10 * 1024 * 1024 // 10MB
-          ? await driveService.uploadLargeFile(buffer, finalFilename, folderId, attachment.contentType)
-          : await driveService.uploadFile(buffer, finalFilename, folderId, attachment.contentType);
+        // Pipe the download into Drive instead of buffering the whole file in memory.
+        const uploadResult = await driveService.uploadFile(
+          response.body,
+          finalFilename,
+          folderId,
+          attachment.contentType
+        );
 
         logger.info(`Successfully uploaded ${finalFilename} to Google Drive`);
         return {
