@@ -22,9 +22,9 @@
   "author": "Tinkertanker",
   "license": "MIT",
   "dependencies": {
-    "discord.js": "^14.14.1",
+    "discord.js": "^14.27.0",
     "dotenv": "^16.3.1",
-    "googleapis": "^128.0.0",
+    "googleapis": "^173.0.0",
     "node-fetch": "^3.3.2",
     "tweetnacl": "^1.0.3"
   },
