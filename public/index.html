@@ -4,7 +4,6 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="discord-app-id" content="%DISCORD_APPLICATION_ID%" />
-    <meta name="setup-auth-required" content="%SETUP_AUTH_REQUIRED%" />
     <meta name="theme-color" content="#f7f8fa" />
     <title>Drive Uploader</title>
     <link rel="stylesheet" href="/css/style.css" />
@@ -12,7 +11,12 @@
   <body>
     <header class="topbar">
       <span class="brand">Drive Uploader</span>
-      <div class="status-chips" id="status-chips" hidden></div>
+      <div class="topbar-actions">
+        <div class="status-chips" id="status-chips" hidden></div>
+        <form method="post" action="/auth/logout">
+          <button class="btn btn-ghost btn-compact" type="submit">Sign out</button>
+        </form>
+      </div>
     </header>
 
     <main class="shell">
@@ -36,7 +40,7 @@
           <p class="muted">Authorise the Google account that should own the upload folders.</p>
           <button class="btn btn-google" id="google-signin">
             <img src="https://www.google.com/favicon.ico" alt="" width="16" height="16" />
-            Sign in with Google
+            Connect Google Drive
           </button>
         </article>
 
