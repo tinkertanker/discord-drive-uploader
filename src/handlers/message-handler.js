@@ -21,7 +21,7 @@ export class DiscordBot {
     this.driveContext = null;
     this.filenameReservations = new Map();
     this.successfulFilenameReservationMs = 30 * 1000;
-    this.attachmentFetchTimeoutMs = 2 * 60 * 1000;
+    this.attachmentHeadersTimeoutMs = 2 * 60 * 1000;
   }
 
   async initialize() {
@@ -150,8 +150,6 @@ export class DiscordBot {
     const resultsPromise = Promise.allSettled(
       uploadTasks.map(task => task())
     );
-    const uploadingMessage = await uploadingMessagePromise;
-
     // Wait for uploads to complete
     const results = await resultsPromise;
 
@@ -184,6 +182,7 @@ export class DiscordBot {
       });
     }
 
+    const uploadingMessage = await uploadingMessagePromise;
     if (uploadingMessage) {
       try {
         await this.ensureDiscordRestToken();
@@ -310,11 +309,11 @@ export class DiscordBot {
         });
         const fetchTimer = setTimeout(() => {
           const timeoutError = new Error(
-            `Attachment download timed out after ${this.attachmentFetchTimeoutMs}ms`
+            `Attachment request timed out before response headers after ${this.attachmentHeadersTimeoutMs}ms`
           );
           fetchAbortController.abort(timeoutError);
           rejectFetchTimeout(timeoutError);
-        }, this.attachmentFetchTimeoutMs);
+        }, this.attachmentHeadersTimeoutMs);
         fetchTimer.unref?.();
 
         let response;

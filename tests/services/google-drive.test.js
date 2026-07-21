@@ -342,4 +342,28 @@ describe('GoogleDriveService', () => {
     expect(secondFilenames).not.toBe(firstFilenames);
     expect(secondFilenames).toEqual(['photo.png']);
   });
+
+  test('prunes expired entries across folder and filename cache keys', () => {
+    driveService.folderCache.set('old-folder', {
+      folder: { id: 'old-folder' },
+      expiresAt: 99
+    });
+    driveService.folderCache.set('current-folder', {
+      folder: { id: 'current-folder' },
+      expiresAt: 101
+    });
+    driveService.filenameCache.set('old-folder', {
+      filenames: ['old.png'],
+      expiresAt: 99
+    });
+    driveService.filenameCache.set('current-folder', {
+      filenames: ['current.png'],
+      expiresAt: 101
+    });
+
+    driveService.pruneExpiredCaches(100);
+
+    expect([...driveService.folderCache.keys()]).toEqual(['current-folder']);
+    expect([...driveService.filenameCache.keys()]).toEqual(['current-folder']);
+  });
 });

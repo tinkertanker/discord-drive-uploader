@@ -57,7 +57,7 @@ describe('DiscordBot upload handling', () => {
   test('aborts a Discord attachment request that never returns headers', async () => {
     jest.useFakeTimers();
     const bot = new DiscordBot();
-    bot.attachmentFetchTimeoutMs = 100;
+    bot.attachmentHeadersTimeoutMs = 100;
     mockFetch.mockImplementationOnce(() => new Promise(() => {}));
     const driveService = { uploadFile: jest.fn() };
 
@@ -71,7 +71,7 @@ describe('DiscordBot upload handling', () => {
       const uploadPromise = upload();
       jest.advanceTimersByTime(100);
 
-      await expect(uploadPromise).rejects.toThrow('Attachment download timed out');
+      await expect(uploadPromise).rejects.toThrow('Attachment request timed out before response headers');
       expect(mockFetch.mock.calls[0][1].signal.aborted).toBe(true);
       expect(driveService.uploadFile).not.toHaveBeenCalled();
     } finally {

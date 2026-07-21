@@ -24,6 +24,20 @@ export class GoogleDriveService {
     return String(value).replace(/\\/g, '\\\\').replace(/'/g, '\\\'');
   }
 
+  pruneExpiredCaches(now = Date.now()) {
+    for (const [key, entry] of this.folderCache.entries()) {
+      if (entry.expiresAt <= now) {
+        this.folderCache.delete(key);
+      }
+    }
+
+    for (const [key, entry] of this.filenameCache.entries()) {
+      if (entry.expiresAt <= now) {
+        this.filenameCache.delete(key);
+      }
+    }
+  }
+
   async listFolders(pageSize = 100) {
     try {
       const response = await this.drive.files.list({
@@ -150,6 +164,7 @@ export class GoogleDriveService {
   }
 
   async ensureFolder(name, parentId = null) {
+    this.pruneExpiredCaches();
     const folderKey = `${parentId || 'root'}:${name}`;
     const cachedFolder = this.folderCache.get(folderKey);
     if (cachedFolder && cachedFolder.expiresAt > Date.now()) {
@@ -268,6 +283,7 @@ export class GoogleDriveService {
   }
 
   async getKnownFilenames(folderId) {
+    this.pruneExpiredCaches();
     const cachedFilenames = this.filenameCache.get(folderId);
     if (cachedFilenames && cachedFilenames.expiresAt > Date.now()) {
       return [...cachedFilenames.filenames];
