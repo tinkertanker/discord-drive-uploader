@@ -18,6 +18,7 @@ Self-hosted Discord bot and setup UI for uploading photos and videos from Discor
 - Optional default `default-for-discord` folder creation during setup
 - In-place default folder changes from the linked folders page
 - Responsive setup UI with automatic light/dark theme support
+- Google sign-in with an explicit admin email allowlist
 - Markdown upload confirmations with folder links
 - File-backed configuration storage
 - Docker-first local and self-hosted setup
@@ -89,15 +90,17 @@ Required:
 - `GOOGLE_CLIENT_SECRET`
 - `GOOGLE_REDIRECT_URI`
 - `GOOGLE_API_KEY`
+- `ADMIN_EMAILS`
+  Comma-separated Google account email addresses allowed to open the admin UI.
+- `ADMIN_SESSION_SECRET`
+  Random secret of at least 32 characters used to sign admin session cookies.
 - `DISCORD_APPLICATION_ID`
 - `DISCORD_PUBLIC_KEY`
 
 Optional:
 
-- `SETUP_API_TOKEN`
-  Protects setup/configuration endpoints when the app is reachable from the internet.
 - `ALLOWED_EMAIL_DOMAINS`
-  Comma-separated list of Google account domains allowed to complete setup.
+  Comma-separated list of Google account domains allowed to connect the shared Drive account.
 - `CONFIG_STORE_PATH`
   Overrides where configuration is stored. Defaults to `/data/bot-config.json`.
 
@@ -137,6 +140,7 @@ Commands:
 npm install
 cp .env.example .env
 # fill in .env
+# generate ADMIN_SESSION_SECRET with: openssl rand -hex 32
 npm run dev
 ```
 
@@ -153,7 +157,7 @@ Then open the app in your browser, usually at:
 
 ## Setup Flow
 
-Complete the browser setup in this order:
+Sign in with an email address listed in `ADMIN_EMAILS`, then complete the browser setup in this order:
 
 1. Connect Google Drive
 2. Pick a default Google Drive folder
@@ -165,9 +169,9 @@ Complete the browser setup in this order:
    - Only servers the bot has already joined will appear in the picker
    - You can also review and change the default fallback folder again from this page later
 
-If `SETUP_API_TOKEN` is configured, enter it when prompted before saving configuration.
+Admin sign-in and Drive authorisation are separate. Signing in proves who may manage the app; connecting Google Drive grants the bot access to its shared upload folders. Both flows use the same `/auth/google/callback` redirect URI.
 
-If `ALLOWED_EMAIL_DOMAINS` is configured, only Google accounts from those domains can complete setup.
+If `ALLOWED_EMAIL_DOMAINS` is configured, only Google accounts from those domains can connect the shared Drive account.
 
 The setup wizard will also ask for the Discord bot token. That value comes from the `Bot` tab in the Discord Developer Portal, not from the `.env` file.
 

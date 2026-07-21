@@ -1,5 +1,3 @@
-const setupTokenStorageKey = 'discord-drive-setup-token';
-const setupAuthRequired = getMeta('setup-auth-required') === 'true';
 const SETUP_STEPS = ['google', 'folder', 'token'];
 const THEME_META_COLORS = { light: '#f7f8fa', dark: '#0e1116' };
 
@@ -67,40 +65,27 @@ function toast(message, isError = false) {
   );
 }
 
-/* ───────────────────────── setup-token auth ────────────────────── */
-function requestSetupToken() {
-  const token = window.prompt('Enter the setup token configured on the server');
-  const trimmed = (token || '').trim();
-  if (trimmed) sessionStorage.setItem(setupTokenStorageKey, trimmed);
-  return trimmed;
-}
-function getSetupToken() {
-  if (!setupAuthRequired) return '';
-  return sessionStorage.getItem(setupTokenStorageKey) || requestSetupToken();
-}
-function withSetupAuthHeaders(extra = {}) {
-  if (!setupAuthRequired) return extra;
-  const token = getSetupToken();
-  if (!token) throw new Error('Setup token required');
-  return { ...extra, 'X-Setup-Token': token };
-}
 function throwIfUnauthorized(response) {
-  if (response.status === 401 || response.status === 403) {
-    sessionStorage.removeItem(setupTokenStorageKey);
-    throw new Error('Invalid or expired setup token');
+  if (response.status === 401 && response.headers.get('x-auth-required') === 'true') {
+    window.location.assign('/login?error=session_expired');
+    throw new Error('Your admin session has expired');
   }
 }
 
 /* ───────────────────────── api ─────────────────────────────────── */
 async function apiGet(path) {
-  return fetch(path, { headers: withSetupAuthHeaders({ 'Content-Type': 'application/json' }) });
+  const response = await fetch(path, { headers: { 'Content-Type': 'application/json' } });
+  throwIfUnauthorized(response);
+  return response;
 }
 async function apiPost(path, body) {
-  return fetch(path, {
+  const response = await fetch(path, {
     method: 'POST',
-    headers: withSetupAuthHeaders({ 'Content-Type': 'application/json' }),
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   });
+  throwIfUnauthorized(response);
+  return response;
 }
 async function errorText(response, fallback) {
   return response

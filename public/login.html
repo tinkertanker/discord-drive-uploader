@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#f7f8fa" />
+    <title>Sign in · Drive Uploader</title>
+    <link rel="stylesheet" href="/css/style.css" />
+  </head>
+  <body class="auth-page">
+    <main class="auth-shell">
+      <section class="card auth-card">
+        <span class="auth-eyebrow">Drive Uploader</span>
+        <h1 class="panel-title">Admin sign in</h1>
+        <p class="muted">
+          Sign in with an approved Google account to manage the Discord and Drive configuration.
+        </p>
+        <p class="auth-error" id="auth-error" role="alert" hidden></p>
+        <a class="btn btn-google auth-button" href="/auth/google/login">
+          <img src="https://www.google.com/favicon.ico" alt="" width="16" height="16" />
+          Continue with Google
+        </a>
+      </section>
+    </main>
+    <script>
+      const messages = {
+        not_authorised: 'That Google account is not authorised to manage this app.',
+        session_expired: 'Your admin session expired. Sign in again to continue.'
+      };
+      const message = messages[new URLSearchParams(window.location.search).get('error')];
+      const error = document.getElementById('auth-error');
+      if (message) {
+        error.textContent = message;
+        error.hidden = false;
+      }
+    </script>
+  </body>
+</html>

@@ -59,6 +59,15 @@ export class GoogleAuthService {
     });
   }
 
+  generateLoginAuthUrl(state) {
+    return this.oauth2Client.generateAuthUrl({
+      access_type: 'online',
+      scope: ['openid', 'email'],
+      state,
+      prompt: 'select_account'
+    });
+  }
+
   async getTokensFromCode(code) {
     try {
       const { tokens } = await this.oauth2Client.getToken(code);

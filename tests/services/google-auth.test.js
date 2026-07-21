@@ -55,6 +55,20 @@ describe('GoogleAuthService', () => {
     });
   });
 
+  describe('generateLoginAuthUrl', () => {
+    test('requests identity scopes without Drive access', () => {
+      const url = authService.generateLoginAuthUrl('login_state');
+
+      expect(mockOAuth2Client.generateAuthUrl).toHaveBeenCalledWith({
+        access_type: 'online',
+        scope: ['openid', 'email'],
+        state: 'login_state',
+        prompt: 'select_account'
+      });
+      expect(url).toContain('https://accounts.google.com');
+    });
+  });
+
   describe('getTokensFromCode', () => {
     test('successfully gets tokens from code', async () => {
       const code = 'test_auth_code';
@@ -92,7 +106,6 @@ describe('GoogleAuthService', () => {
         .rejects.toThrow('Failed to refresh Google access token');
     });
   });
-
   describe('refreshStoredGoogleTokens', () => {
     test('coalesces concurrent refreshes and stores the result once', async () => {
       let resolveRefresh;
