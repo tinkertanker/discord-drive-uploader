@@ -18,13 +18,13 @@ export function refreshStoredGoogleTokens(configStore, tokens) {
   const authService = new GoogleAuthService();
   const refreshPromise = (async () => {
     const refreshed = await authService.refreshAccessToken(refreshToken);
-    const latestTokens = await configStore.getGoogleTokens();
-    if (latestTokens?.refresh_token && latestTokens.refresh_token !== refreshToken) {
-      return latestTokens;
-    }
-
-    await configStore.setGoogleTokens(refreshed);
-    return { ...tokens, ...refreshed, expired: false };
+    const result = await configStore.setGoogleTokensIfRefreshTokenMatches(
+      refreshed,
+      refreshToken
+    );
+    return result.updated
+      ? { ...result.value, expired: false }
+      : result.value;
   })();
   const trackedRefreshPromise = refreshPromise.finally(() => {
     if (pendingStoredTokenRefreshes.get(refreshToken) === trackedRefreshPromise) {

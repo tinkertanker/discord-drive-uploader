@@ -105,8 +105,10 @@ describe('GoogleAuthService', () => {
         expired: true
       };
       const configStore = {
-        getGoogleTokens: jest.fn().mockResolvedValue(expiredTokens),
-        setGoogleTokens: jest.fn().mockResolvedValue(undefined)
+        setGoogleTokensIfRefreshTokenMatches: jest.fn().mockResolvedValue({
+          updated: true,
+          value: { ...expiredTokens, access_token: 'fresh-token' }
+        })
       };
 
       const firstRefresh = refreshStoredGoogleTokens(configStore, expiredTokens);
@@ -116,7 +118,7 @@ describe('GoogleAuthService', () => {
       resolveRefresh({ credentials: { access_token: 'fresh-token' } });
       const [firstTokens, secondTokens] = await Promise.all([firstRefresh, secondRefresh]);
 
-      expect(configStore.setGoogleTokens).toHaveBeenCalledTimes(1);
+      expect(configStore.setGoogleTokensIfRefreshTokenMatches).toHaveBeenCalledTimes(1);
       expect(firstTokens).toEqual({
         access_token: 'fresh-token',
         refresh_token: 'shared-refresh-token',
@@ -131,8 +133,10 @@ describe('GoogleAuthService', () => {
         expired: true
       };
       const configStore = {
-        getGoogleTokens: jest.fn().mockResolvedValue(expiredTokens),
-        setGoogleTokens: jest.fn().mockResolvedValue(undefined)
+        setGoogleTokensIfRefreshTokenMatches: jest.fn().mockResolvedValue({
+          updated: true,
+          value: { ...expiredTokens, access_token: 'recovered-token' }
+        })
       };
       mockOAuth2Client.refreshAccessToken
         .mockRejectedValueOnce(new Error('Temporary failure'))
@@ -148,7 +152,7 @@ describe('GoogleAuthService', () => {
         });
 
       expect(mockOAuth2Client.refreshAccessToken).toHaveBeenCalledTimes(2);
-      expect(configStore.setGoogleTokens).toHaveBeenCalledTimes(1);
+      expect(configStore.setGoogleTokensIfRefreshTokenMatches).toHaveBeenCalledTimes(1);
     });
 
     test('does not overwrite credentials replaced during an in-flight refresh', async () => {
@@ -167,15 +171,20 @@ describe('GoogleAuthService', () => {
         expired: false
       };
       const configStore = {
-        getGoogleTokens: jest.fn().mockResolvedValue(reconnectedTokens),
-        setGoogleTokens: jest.fn().mockResolvedValue(undefined)
+        setGoogleTokensIfRefreshTokenMatches: jest.fn().mockResolvedValue({
+          updated: false,
+          value: reconnectedTokens
+        })
       };
 
       const refreshPromise = refreshStoredGoogleTokens(configStore, oldTokens);
       resolveRefresh({ credentials: { access_token: 'stale-refreshed-token' } });
 
       await expect(refreshPromise).resolves.toBe(reconnectedTokens);
-      expect(configStore.setGoogleTokens).not.toHaveBeenCalled();
+      expect(configStore.setGoogleTokensIfRefreshTokenMatches).toHaveBeenCalledWith(
+        { access_token: 'stale-refreshed-token' },
+        'old-refresh-token'
+      );
     });
   });
 });
