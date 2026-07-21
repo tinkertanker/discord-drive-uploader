@@ -1,3 +1,5 @@
+/* eslint-env browser */
+
 const SETUP_STEPS = ['google', 'folder', 'token'];
 const THEME_META_COLORS = { light: '#f7f8fa', dark: '#0e1116' };
 
@@ -33,7 +35,7 @@ function escapeHtml(value) {
     .replaceAll('<', '&lt;')
     .replaceAll('>', '&gt;')
     .replaceAll('"', '&quot;')
-    .replaceAll("'", '&#39;');
+    .replaceAll(/'/g, '&#39;');
 }
 function setBusy(button, busy, busyText = 'Working…') {
   if (!button) return;
@@ -559,11 +561,11 @@ async function submitLink({ useDefault }, button) {
     const payload = useDefault
       ? { guildId, channelId }
       : {
-          guildId,
-          channelId,
-          folderId: state.channelDraft.id,
-          folderName: state.channelDraft.name,
-        };
+        guildId,
+        channelId,
+        folderId: state.channelDraft.id,
+        folderName: state.channelDraft.name,
+      };
     const response = await apiPost('/api/config-channel', payload);
     throwIfUnauthorized(response);
     if (!response.ok) throw new Error(await errorText(response, 'Failed to link channel'));
@@ -737,6 +739,9 @@ window.addEventListener('DOMContentLoaded', async () => {
     const domain = allowed ? `@${allowed.split(',')[0]}` : 'an approved domain';
     const used = email.includes('@') ? email.split('@')[1] : email;
     toast(`This bot only accepts ${domain}. You signed in with ${used}.`, true);
+  }
+  if (params.get('error') === 'drive_authorisation_cancelled') {
+    toast('Google Drive authorisation was cancelled.', true);
   }
   // Clean transient OAuth params; routing is decided by server state, not the URL.
   if (params.has('step') || params.has('oauth') || params.has('error')) {

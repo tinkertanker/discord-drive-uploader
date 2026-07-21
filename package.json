@@ -9,7 +9,7 @@
     "start": "node src/index.js",
     "build": "echo 'No build step required for this service'",
     "test": "NODE_OPTIONS=--experimental-vm-modules jest",
-    "lint": "eslint src/",
+    "lint": "eslint src/ public/js/",
     "format": "prettier --write \"**/*.{js,json,md}\"",
     "deploy": "bash ./scripts/deploy.sh"
   },

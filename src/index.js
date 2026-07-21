@@ -1,7 +1,7 @@
 import { createServer } from 'node:http';
 import { createReadStream, statSync } from 'node:fs';
 import { promises as fs } from 'node:fs';
-import { join, normalize, extname } from 'node:path';
+import { join, normalize, extname, resolve } from 'node:path';
 import { randomBytes, timingSafeEqual } from 'node:crypto';
 import { URL } from 'node:url';
 import { fileURLToPath } from 'node:url';
@@ -85,6 +85,14 @@ function isSecureRequest(req) {
   return forwardedProto === 'https' || Boolean(req.socket.encrypted);
 }
 
+function isTrustedOrigin(req) {
+  const origin = req.headers.origin;
+  const host = req.headers.host;
+  if (!origin || !host) return false;
+  const protocol = isSecureRequest(req) ? 'https' : 'http';
+  return origin === `${protocol}://${host}`;
+}
+
 function appendCookie(res, cookie) {
   const current = res.getHeader('Set-Cookie');
   const cookies = current ? (Array.isArray(current) ? current : [current]) : [];
@@ -163,6 +171,14 @@ function isAuthorizedAdminRequest(req, res) {
   return null;
 }
 
+function isAuthorizedAdminMutation(req, res) {
+  const session = isAuthorizedAdminRequest(req, res);
+  if (!session) return null;
+  if (isTrustedOrigin(req)) return session;
+  sendResponse(res, json({ error: 'Untrusted request origin' }, 403));
+  return null;
+}
+
 function cleanupOAuthState() {
   const now = Date.now();
   for (const [state, pending] of oauthState.entries()) {
@@ -220,6 +236,12 @@ async function getRunningBot(req, res) {
 }
 
 async function readJsonBody(req, res) {
+  const contentType = String(req.headers['content-type'] || '').split(';')[0].trim().toLowerCase();
+  if (contentType !== 'application/json') {
+    sendResponse(res, json({ error: 'Content-Type must be application/json' }, 415));
+    return null;
+  }
+
   const bodyText = await getRequestBody(req);
   try {
     return JSON.parse(bodyText || '{}');
@@ -315,7 +337,7 @@ async function getGoogleDriveServiceForClient() {
   return new GoogleDriveService(authService.getAuthClient());
 }
 
-const server = createServer(async (req, res) => {
+export const server = createServer(async (req, res) => {
   const method = req.method || 'GET';
   const requestUrl = new URL(req.url || '/', `http://localhost:${PORT}`);
   const pathname = requestUrl.pathname;
@@ -357,6 +379,9 @@ const server = createServer(async (req, res) => {
     }
 
     if (method === 'POST' && pathname === '/auth/logout') {
+      if (!isTrustedOrigin(req)) {
+        return sendResponse(res, json({ error: 'Untrusted request origin' }, 403));
+      }
       clearAdminSession(res);
       res.statusCode = 303;
       res.setHeader('Location', '/login');
@@ -384,13 +409,10 @@ const server = createServer(async (req, res) => {
     if (method === 'GET' && pathname === '/auth/google/callback') {
       cleanupOAuthState();
       const code = requestUrl.searchParams.get('code');
+      const oauthError = requestUrl.searchParams.get('error');
       const state = requestUrl.searchParams.get('state');
       const cookieState = getCookie(req, 'discord-drive-state');
       const pending = oauthState.get(state);
-
-      if (!code) {
-        return sendResponse(res, json({ error: 'Missing authorization code' }, 400));
-      }
 
       if (!pending || !verifyStateCookie(state || '', cookieState) || Date.now() - pending.startedAt > OAUTH_STATE_TTL_MS) {
         return sendResponse(res, json({ error: 'Invalid or expired OAuth state' }, 400));
@@ -398,6 +420,21 @@ const server = createServer(async (req, res) => {
 
       oauthState.delete(state);
       setStateCookie(req, res, '');
+
+      if (oauthError) {
+        res.statusCode = 302;
+        res.setHeader(
+          'Location',
+          pending.purpose === 'login'
+            ? '/login?error=oauth_cancelled'
+            : '/?error=drive_authorisation_cancelled'
+        );
+        return res.end();
+      }
+
+      if (!code) {
+        return sendResponse(res, json({ error: 'Missing authorization code' }, 400));
+      }
 
       const authService = new GoogleAuthService();
       const tokens = await authService.getTokensFromCode(code);
@@ -491,7 +528,7 @@ const server = createServer(async (req, res) => {
     }
 
     if (method === 'POST' && pathname === '/api/config-folder') {
-      if (!isAuthorizedAdminRequest(req, res)) return;
+      if (!isAuthorizedAdminMutation(req, res)) return;
 
       const body = await readJsonBody(req, res);
       if (body === null) return;
@@ -541,7 +578,7 @@ const server = createServer(async (req, res) => {
     }
 
     if (method === 'POST' && pathname === '/api/config-discord') {
-      if (!isAuthorizedAdminRequest(req, res)) return;
+      if (!isAuthorizedAdminMutation(req, res)) return;
 
       const body = await readJsonBody(req, res);
       if (body === null) return;
@@ -609,7 +646,7 @@ const server = createServer(async (req, res) => {
     }
 
     if (method === 'POST' && pathname === '/api/config-channel') {
-      if (!isAuthorizedAdminRequest(req, res)) return;
+      if (!isAuthorizedAdminMutation(req, res)) return;
 
       const body = await readJsonBody(req, res);
       if (body === null) return;
@@ -740,10 +777,12 @@ const server = createServer(async (req, res) => {
   }
 });
 
-server.listen(PORT, () => {
-  logger.info(`Server listening on port ${PORT}`);
+if (resolve(process.argv[1] || '') === fileURLToPath(import.meta.url)) {
+  server.listen(PORT, () => {
+    logger.info(`Server listening on port ${PORT}`);
 
-  ensureBotRunning().catch((error) => {
-    logger.warn('Bot not started yet. Configure Discord token from setup page:', error.message);
+    ensureBotRunning().catch((error) => {
+      logger.warn('Bot not started yet. Configure Discord token from setup page:', error.message);
+    });
   });
-});
+}
